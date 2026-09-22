@@ -1,0 +1,61 @@
+name: Compilar Pop 110 Digital V2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restaurar código do aplicativo
+        shell: bash
+        run: |
+          cat bundle/part-0*.b64 | base64 --decode > /tmp/pop110-v2-source.tar.xz
+          echo "8be9fb6eadf658f4c1cd3b0d3bc506990a921309703d1e1044dbf5ba5f211c74  /tmp/pop110-v2-source.tar.xz" | sha256sum --check
+          tar -xJf /tmp/pop110-v2-source.tar.xz
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Instalar Android SDK
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Testes do filtro
+        run: gradle --no-daemon testDebugUnitTest
+
+      - name: Gerar APK
+        run: gradle --no-daemon assembleDebug
+
+      - name: Disponibilizar APK para download
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pop110Digital-V2-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publicar fontes no repositório
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gradle.properties build.gradle.kts settings.gradle.kts app/ .github/workflows/gerar-apk.yml
+          if ! git diff --cached --quiet; then
+            git commit -m "Publica fontes Pop 110 Digital V2"
+            git push
+          fi
