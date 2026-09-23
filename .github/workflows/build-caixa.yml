@@ -1,0 +1,56 @@
+name: Compilar Caixa Rendimento
+on:
+  push:
+    branches: [caixa-rendimento]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restaurar o aplicativo
+        shell: bash
+        run: |
+          base64 -d bundle/caixa-source.tar.xz.b64 > /tmp/caixa-source.tar.xz
+          echo "0a22ca7885e80b3e918b7f35b27883b67e30155ecf2079dbcf3f405b22cc0cbd  /tmp/caixa-source.tar.xz" | sha256sum -c
+          rm -rf app
+          tar -xJf /tmp/caixa-source.tar.xz
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Preparar Android SDK
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Testar o cálculo da rentabilidade
+        shell: bash
+        run: |
+          mkdir -p /tmp/caixa-tests
+          cat > /tmp/caixa-tests/ParserSmoke.java <<'JAVA'
+          import br.com.rendimentocaixa.CvmCsv;
+          import java.io.*;
+          import java.util.*;
+          public class ParserSmoke {
+            public static void main(String[] args) throws Exception {
+              String sample = "CNPJ_FUNDO_CLASSE;DT_COMPTC;VL_QUOTA\n41.114.051/0001-21;2026-09-01;1,5000\n41.114.051/0001-21;2026-09-02;1,5150\n00.000.000/0001-00;2026-09-03;999\n";
+              TreeMap<String, Double> quotes = CvmCsv.parse(new BufferedReader(new StringReader(sample)));
+              if (quotes.size()!=2 || Math.abs(CvmCsv.percent(quotes.lastEntry().getValue(),quotes.firstEntry().getValue())-1.0)>0.00001) throw new RuntimeException("Parser falhou");
+              System.out.println("Cálculo e filtro CNPJ: OK");
+            }
+          }
+          JAVA
+          javac -d /tmp/caixa-tests app/src/main/java/br/com/rendimentocaixa/CvmCsv.java /tmp/caixa-tests/ParserSmoke.java
+          java -cp /tmp/caixa-tests ParserSmoke
+      - name: Gerar APK
+        run: gradle --no-daemon assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CaixaRendimento-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
