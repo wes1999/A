@@ -17,6 +17,7 @@ jobs:
           echo "0a22ca7885e80b3e918b7f35b27883b67e30155ecf2079dbcf3f405b22cc0cbd  /tmp/caixa-source.tar.xz" | sha256sum -c
           rm -rf app
           tar -xJf /tmp/caixa-source.tar.xz
+          sed -i 's/finish();/finishRefresh();/g; s/private void finish()/private void finishRefresh()/g' app/src/main/java/br/com/rendimentocaixa/MainActivity.java
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
