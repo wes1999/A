@@ -20,7 +20,10 @@ const sqlSchema=[
 "CREATE INDEX IF NOT EXISTS transfers_from_idx ON transfers(from_id,created_at DESC)",
 "CREATE INDEX IF NOT EXISTS transfers_to_idx ON transfers(to_id,created_at DESC)",
 "CREATE TABLE IF NOT EXISTS issuance(id UUID PRIMARY KEY,target_id UUID NOT NULL REFERENCES accounts(id),cents BIGINT NOT NULL CHECK(cents>0),issued_at BIGINT NOT NULL)",
-"CREATE TABLE IF NOT EXISTS admin_events(id UUID PRIMARY KEY,event TEXT NOT NULL,account_id UUID NOT NULL REFERENCES accounts(id),details TEXT NOT NULL,created_at BIGINT NOT NULL)"
+"CREATE TABLE IF NOT EXISTS admin_events(id UUID PRIMARY KEY,event TEXT NOT NULL,account_id UUID NOT NULL REFERENCES accounts(id),details TEXT NOT NULL,created_at BIGINT NOT NULL)",
+"CREATE TABLE IF NOT EXISTS admin_debits(id UUID PRIMARY KEY,target_id UUID NOT NULL REFERENCES accounts(id),cents BIGINT NOT NULL CHECK(cents>0),reason TEXT NOT NULL,created_at BIGINT NOT NULL)",
+"CREATE INDEX IF NOT EXISTS admin_debits_target_idx ON admin_debits(target_id,created_at DESC)",
+"CREATE TABLE IF NOT EXISTS account_closures(account_id UUID PRIMARY KEY REFERENCES accounts(id),removed_cents BIGINT NOT NULL CHECK(removed_cents>=0),reason TEXT NOT NULL,closed_at BIGINT NOT NULL)"
 ];
 const hash=s=>createHash('sha256').update(s).digest('hex');
 const rand=n=>randomBytes(n).toString('hex');
@@ -94,7 +97,7 @@ async function endpoint(req,res){
    if(path==='/admin/logout'&&method==='POST'){await query('DELETE FROM admin_sessions WHERE token_hash=$1',[tokenOf(req)]);return send(res,{ok:true});}
    if(path==='/admin/accounts'&&method==='GET'){
      const q=String(u.searchParams.get('q')||'').trim();if(q.length>60)return fail(res,'Pesquisa muito longa.');
-     const rs=await query("SELECT a.id,a.name,a.account_key,a.balance_cents,a.status,a.created_at,COALESCE((SELECT json_agg(key ORDER BY created_at) FROM account_keys WHERE account_id=a.id),'[]'::json) keys FROM accounts a WHERE a.name ILIKE $1 OR a.id IN(SELECT account_id FROM account_keys WHERE key LIKE $2) ORDER BY a.created_at DESC LIMIT 100",['%'+q+'%','%'+q.toUpperCase()+'%']);
+     const rs=await query("SELECT a.id,a.name,a.account_key,a.balance_cents,a.status,a.created_at,EXISTS(SELECT 1 FROM account_closures c WHERE c.account_id=a.id) closed,COALESCE((SELECT json_agg(key ORDER BY created_at) FROM account_keys WHERE account_id=a.id),'[]'::json) keys FROM accounts a WHERE a.name ILIKE $1 OR a.id IN(SELECT account_id FROM account_keys WHERE key LIKE $2) ORDER BY a.created_at DESC LIMIT 100",['%'+q+'%','%'+q.toUpperCase()+'%']);
      return send(res,{accounts:rs.rows.map(a=>({...a,balance_cents:money(a.balance_cents)}))});
    }
    if(path==='/admin/stats'&&method==='GET'){
@@ -104,21 +107,60 @@ async function endpoint(req,res){
    }
    if(path==='/admin/account'&&method==='GET'){
      const id=String(u.searchParams.get('id')||'');if(!validUuid(id))return fail(res,'Conta inválida.');
-     const a=(await query('SELECT id,name,account_key,balance_cents,status,created_at FROM accounts WHERE id=$1',[id])).rows[0];if(!a)return fail(res,'Conta não encontrada.',404);
+     const a=(await query('SELECT a.id,a.name,a.account_key,a.balance_cents,a.status,a.created_at,EXISTS(SELECT 1 FROM account_closures c WHERE c.account_id=a.id) closed FROM accounts a WHERE a.id=$1',[id])).rows[0];if(!a)return fail(res,'Conta não encontrada.',404);
      const t=await query('SELECT t.id,t.cents,t.created_at,s.name sender,r.name recipient FROM transfers t JOIN accounts s ON t.from_id=s.id JOIN accounts r ON t.to_id=r.id WHERE t.from_id=$1 OR t.to_id=$1 ORDER BY t.created_at DESC LIMIT 50',[id]);
      const i=await query('SELECT id,cents,issued_at FROM issuance WHERE target_id=$1 ORDER BY issued_at DESC LIMIT 30',[id]);
-     return send(res,{account:await account(a),transfers:t.rows.map(x=>({...x,cents:money(x.cents)})),issuance:i.rows.map(x=>({...x,cents:money(x.cents)}))});
+     const debits=await query('SELECT id,cents,reason,created_at FROM admin_debits WHERE target_id=$1 ORDER BY created_at DESC LIMIT 30',[id]);
+     return send(res,{account:{...await account(a),closed:a.closed},transfers:t.rows.map(x=>({...x,cents:money(x.cents)})),issuance:i.rows.map(x=>({...x,cents:money(x.cents)})),debits:debits.rows.map(x=>({...x,cents:money(x.cents)}))});
    }
    if(path==='/admin/status'&&method==='POST'){
      const id=String(body.account_id||''),status=body.status;
      if(!validUuid(id)||!['ACTIVE','SUSPENDED'].includes(status))return fail(res,'Dados inválidos.');
      const updated=await tx(async c=>{
+       const closed=await c.query('SELECT account_id FROM account_closures WHERE account_id=$1',[id]);
+       if(closed.rowCount)return 'closed';
        const r=await c.query('UPDATE accounts SET status=$1 WHERE id=$2 RETURNING id',[status,id]);
        if(!r.rowCount)return false;
        await c.query('INSERT INTO admin_events(id,event,account_id,details,created_at) VALUES($1,$2,$3,$4,$5)',[randomUUID(),'STATUS',id,status,Date.now()]);
        await c.query('DELETE FROM sessions WHERE account_id=$1',[id]);return true;
      });
-     return updated?send(res,{ok:true,status}):fail(res,'Conta não encontrada.',404);
+     return updated==='closed'?fail(res,'Esta conta foi encerrada definitivamente.',409):updated?send(res,{ok:true,status}):fail(res,'Conta não encontrada.',404);
+   }
+   if(path==='/admin/debit'&&method==='POST'){
+     const accountId=String(body.account_id||''),opId=String(body.idempotency_key||'');
+     const all=body.all===true,requested=body.cents,reason=String(body.reason||'Ajuste administrativo').trim().slice(0,160);
+     if(!validUuid(accountId)||!validUuid(opId)||(!all&&!validCents(requested)))return fail(res,'Conta, valor ou identificador inválido.');
+     const result=await tx(async c=>{
+       const target=(await c.query('SELECT id,name,balance_cents FROM accounts WHERE id=$1 FOR UPDATE',[accountId])).rows[0];
+       if(!target)return {error:'Conta não encontrada.',status:404};
+       if((await c.query('SELECT 1 FROM account_closures WHERE account_id=$1',[accountId])).rowCount)return {error:'Conta já encerrada.',status:409};
+       const prior=(await c.query('SELECT target_id,cents FROM admin_debits WHERE id=$1',[opId])).rows[0];
+       if(prior)return prior.target_id===accountId&&prior.cents===(all?Number(prior.cents):requested)?{ok:true,repeated:true,tx:opId,cents:money(prior.cents),recipient:target.name,balance_cents:money(target.balance_cents)}:{error:'Identificador já utilizado.',status:409};
+       const cents=all?Number(target.balance_cents):requested;
+       if(cents<1)return {error:'A conta não possui saldo para remover.',status:409};
+       if(cents>Number(target.balance_cents))return {error:'Saldo insuficiente para este desconto.',status:409};
+       await c.query('UPDATE accounts SET balance_cents=balance_cents-$1 WHERE id=$2',[cents,accountId]);
+       await c.query('INSERT INTO admin_debits(id,target_id,cents,reason,created_at) VALUES($1,$2,$3,$4,$5)',[opId,accountId,cents,reason,Date.now()]);
+       await c.query('INSERT INTO admin_events(id,event,account_id,details,created_at) VALUES($1,$2,$3,$4,$5)',[randomUUID(),'DEBIT',accountId,JSON.stringify({tx:opId,cents,reason}),Date.now()]);
+       return {ok:true,tx:opId,cents,recipient:target.name,balance_cents:Number(target.balance_cents)-cents};
+     });return result.error?fail(res,result.error,result.status):send(res,result);
+   }
+   if(path==='/admin/close'&&method==='POST'){
+     const accountId=String(body.account_id||''),confirmName=String(body.confirm_name||'').trim(),reason=String(body.reason||'Encerramento administrativo').trim().slice(0,160);
+     if(!validUuid(accountId)||confirmName.length<2||confirmName.length>45)return fail(res,'Confirme a conta e o nome do titular.');
+     const result=await tx(async c=>{
+       const target=(await c.query('SELECT id,name,balance_cents FROM accounts WHERE id=$1 FOR UPDATE',[accountId])).rows[0];
+       if(!target)return {error:'Conta não encontrada.',status:404};
+       if(target.name.trim()!==confirmName)return {error:'O nome de confirmação não corresponde ao titular.',status:409};
+       const prior=(await c.query('SELECT removed_cents,closed_at FROM account_closures WHERE account_id=$1',[accountId])).rows[0];
+       if(prior)return {ok:true,repeated:true,closed:true,name:target.name,removed_cents:money(prior.removed_cents)};
+       const removed=Number(target.balance_cents),now=Date.now();
+       await c.query("UPDATE accounts SET balance_cents=0,status='SUSPENDED' WHERE id=$1",[accountId]);
+       await c.query('INSERT INTO account_closures(account_id,removed_cents,reason,closed_at) VALUES($1,$2,$3,$4)',[accountId,removed,reason,now]);
+       await c.query('DELETE FROM sessions WHERE account_id=$1',[accountId]);
+       await c.query('INSERT INTO admin_events(id,event,account_id,details,created_at) VALUES($1,$2,$3,$4,$5)',[randomUUID(),'CLOSE',accountId,JSON.stringify({removed_cents:removed,reason}),now]);
+       return {ok:true,closed:true,name:target.name,removed_cents:removed};
+     });return result.error?fail(res,result.error,result.status):send(res,result);
    }
    if(path==='/admin/issue'&&method==='POST'){
      const cents=body.cents,k=norm(body.key),id=String(body.idempotency_key||'');
@@ -126,7 +168,7 @@ async function endpoint(req,res){
      const result=await tx(async c=>{
        const prior=(await c.query('SELECT target_id,cents FROM issuance WHERE id=$1',[id])).rows[0];
        if(prior){const a=(await c.query('SELECT name FROM accounts WHERE id=$1',[prior.target_id])).rows[0];return prior.cents==cents?{ok:true,repeated:true,cents,recipient:a?.name,tx:id}:{error:'Identificador utilizado para outra emissão.',status:409};}
-       const recipient=(await c.query('SELECT a.id,a.name FROM account_keys ak JOIN accounts a ON a.id=ak.account_id WHERE ak.key=$1 FOR UPDATE OF a',[k])).rows[0];
+       const recipient=(await c.query('SELECT a.id,a.name FROM account_keys ak JOIN accounts a ON a.id=ak.account_id WHERE ak.key=$1 AND a.status='ACTIVE' FOR UPDATE OF a',[k])).rows[0];
        if(!recipient)return {error:'Chave não encontrada.',status:404};
        const up=await c.query('UPDATE accounts SET balance_cents=balance_cents+$1 WHERE id=$2 AND balance_cents<=9000000000000-$1 RETURNING id',[cents,recipient.id]);
        if(!up.rowCount)return {error:'Limite de saldo.',status:409};
@@ -169,7 +211,7 @@ async function endpoint(req,res){
    if(!validCents(cents)||!validKey(k)||!validUuid(id))return fail(res,'Valor, chave ou identificador inválido.');
    const result=await tx(async c=>{
      const existing=(await c.query('SELECT cents,to_id FROM transfers WHERE id=$1 AND from_id=$2',[id,me.id])).rows[0];
-     if(existing){const to=(await c.query('SELECT a.name FROM accounts a WHERE a.id=$1',[existing.to_id])).rows[0];return existing.cents==cents?{ok:true,repeated:true,tx:id,cents,recipient:{name:to?.name,key:k}}:{error:'Identificador repetido com outro valor.',status:409};}
+     if(existing){const to=(await c.query('SELECT a.name,a.account_key FROM accounts a WHERE a.id=$1',[existing.to_id])).rows[0];const used=(await c.query('SELECT account_id FROM account_keys WHERE key=$1',[k])).rows[0];return existing.cents==cents&&used?.account_id===existing.to_id?{ok:true,repeated:true,tx:id,cents,recipient:{name:to?.name,key:k}}:{error:'Identificador repetido com destinatário ou valor diferente.',status:409};}
      const to=(await c.query("SELECT a.id,a.name FROM account_keys ak JOIN accounts a ON a.id=ak.account_id WHERE ak.key=$1 AND a.status='ACTIVE'",[k])).rows[0];
      if(!to)return {error:'Chave não encontrada.',status:404};
      if(to.id===me.id)return {error:'Não transfira para a própria conta.',status:409};
@@ -187,7 +229,7 @@ async function endpoint(req,res){
    return result.error?fail(res,result.error,result.status):send(res,result);
  }
  if(path==='/history'&&method==='GET'){
-   const r=await query("SELECT t.id,t.cents,t.created_at,CASE WHEN t.from_id=$1 THEN 'ENVIADO' ELSE 'RECEBIDO' END direction,CASE WHEN t.from_id=$1 THEN rec.name ELSE snd.name END peer_name,CASE WHEN t.from_id=$1 THEN rec.account_key ELSE snd.account_key END peer_key FROM transfers t JOIN accounts snd ON snd.id=t.from_id JOIN accounts rec ON rec.id=t.to_id WHERE t.from_id=$1 OR t.to_id=$1 UNION ALL SELECT i.id,i.cents,i.issued_at,'CREDITO ADMIN','Administração','ADMIN' FROM issuance i WHERE i.target_id=$1 ORDER BY created_at DESC LIMIT 100",[me.id]);
+   const r=await query("SELECT t.id,t.cents,t.created_at,CASE WHEN t.from_id=$1 THEN 'ENVIADO' ELSE 'RECEBIDO' END direction,CASE WHEN t.from_id=$1 THEN rec.name ELSE snd.name END peer_name,CASE WHEN t.from_id=$1 THEN rec.account_key ELSE snd.account_key END peer_key FROM transfers t JOIN accounts snd ON snd.id=t.from_id JOIN accounts rec ON rec.id=t.to_id WHERE t.from_id=$1 OR t.to_id=$1 UNION ALL SELECT i.id,i.cents,i.issued_at,'CREDITO ADMIN','Administração','ADMIN' FROM issuance i WHERE i.target_id=$1 UNION ALL SELECT d.id,-d.cents,d.created_at,'DEBITO ADMIN','Administração','ADMIN' FROM admin_debits d WHERE d.target_id=$1 ORDER BY created_at DESC LIMIT 100",[me.id]);
    return send(res,{history:r.rows.map(x=>({...x,cents:money(x.cents)}))});
  }
  return fail(res,'Rota inexistente.',404);
