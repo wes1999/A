@@ -117,6 +117,8 @@ async function endpoint(req,res){
      const id=String(body.account_id||''),status=body.status;
      if(!validUuid(id)||!['ACTIVE','SUSPENDED'].includes(status))return fail(res,'Dados inválidos.');
      const updated=await tx(async c=>{
+       const lock=await c.query('SELECT id FROM accounts WHERE id=$1 FOR UPDATE',[id]);
+       if(!lock.rowCount)return false;
        const closed=await c.query('SELECT account_id FROM account_closures WHERE account_id=$1',[id]);
        if(closed.rowCount)return 'closed';
        const r=await c.query('UPDATE accounts SET status=$1 WHERE id=$2 RETURNING id',[status,id]);
@@ -168,7 +170,7 @@ async function endpoint(req,res){
      const result=await tx(async c=>{
        const prior=(await c.query('SELECT target_id,cents FROM issuance WHERE id=$1',[id])).rows[0];
        if(prior){const a=(await c.query('SELECT name FROM accounts WHERE id=$1',[prior.target_id])).rows[0];return prior.cents==cents?{ok:true,repeated:true,cents,recipient:a?.name,tx:id}:{error:'Identificador utilizado para outra emissão.',status:409};}
-       const recipient=(await c.query('SELECT a.id,a.name FROM account_keys ak JOIN accounts a ON a.id=ak.account_id WHERE ak.key=$1 AND a.status='ACTIVE' FOR UPDATE OF a',[k])).rows[0];
+       const recipient=(await c.query("SELECT a.id,a.name FROM account_keys ak JOIN accounts a ON a.id=ak.account_id WHERE ak.key=$1 AND a.status='ACTIVE' FOR UPDATE OF a",[k])).rows[0];
        if(!recipient)return {error:'Chave não encontrada.',status:404};
        const up=await c.query('UPDATE accounts SET balance_cents=balance_cents+$1 WHERE id=$2 AND balance_cents<=9000000000000-$1 RETURNING id',[cents,recipient.id]);
        if(!up.rowCount)return {error:'Limite de saldo.',status:409};
