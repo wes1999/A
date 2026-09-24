@@ -1,0 +1,1 @@
+Banco Amigos: build isolado na branch banco-amigos. Codigo administrativo nao incluido. Iniciar Actions quando esta branch receber push.
