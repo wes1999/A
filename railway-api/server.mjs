@@ -38,10 +38,10 @@ async function authLimit(bucket,max,windowMs,failed=false){
   return tx(async c=>{
     const row=(await c.query('SELECT hits,reset_at FROM auth_limits WHERE bucket=$1 FOR UPDATE',[h])).rows[0];
     if(row&&Number(row.reset_at)>now&&row.hits>=max)return false;
-    if(failed){
+    if(failed===true){
       const hits=row&&Number(row.reset_at)>now?row.hits+1:1;
       await c.query('INSERT INTO auth_limits(bucket,hits,reset_at) VALUES($1,$2,$3) ON CONFLICT(bucket) DO UPDATE SET hits=$2,reset_at=$3',[h,hits,now+windowMs]);
-    }else if(row){await c.query('DELETE FROM auth_limits WHERE bucket=$1',[h]);}
+    }else if(failed===false&&row){await c.query('DELETE FROM auth_limits WHERE bucket=$1',[h]);}
     return true;
   });
 }
@@ -148,8 +148,8 @@ async function endpoint(req,res){
      await c.query('SELECT id FROM accounts WHERE id=$1 FOR UPDATE',[me.id]);
      const count=Number((await c.query('SELECT count(*) c FROM account_keys WHERE account_id=$1',[me.id])).rows[0].c);
      if(count>=3)return {error:'Limite de três chaves atingido.',status:409};
-     try{await c.query('INSERT INTO account_keys(key,account_id,created_at) VALUES($1,$2,$3)',[k,me.id,Date.now()]);}
-     catch(e){if(e.code==='23505')return {error:'Esta chave já existe.',status:409};throw e;}
+     const inserted=await c.query('INSERT INTO account_keys(key,account_id,created_at) VALUES($1,$2,$3) ON CONFLICT (key) DO NOTHING RETURNING key',[k,me.id,Date.now()]);
+     if(!inserted.rowCount)return {error:'Esta chave já existe.',status:409};
      return {keys:(await c.query('SELECT key FROM account_keys WHERE account_id=$1 ORDER BY created_at,key',[me.id])).rows.map(x=>x.key),max_keys:3};
    });
    return result.error?fail(res,result.error,result.status):send(res,result,201);
