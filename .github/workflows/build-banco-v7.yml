@@ -17,6 +17,8 @@ jobs:
           cat bundle/banco-v7-source.part* | base64 --decode > /tmp/v7.tar.xz
           echo '2d1b727c014f97c0e697af0b0d0208599c9892d100e9cc3e2976c1695fdbc17c  /tmp/v7.tar.xz' | sha256sum --check
           tar -xJf /tmp/v7.tar.xz -C v7
+          sed -i 's#android:description="Chave Banco Amigos"#android:description="@string/nfc_service_desc"#;s#android:description="Banco Amigos"#android:description="@string/nfc_group_desc"#' v7/app/src/main/res/xml/nfc_service.xml
+          printf '<resources><string name="app_name">Banco Amigos</string><string name="nfc_service_desc">Chave Banco Amigos</string><string name="nfc_group_desc">Banco Amigos</string></resources>\n' > v7/app/src/main/res/values/strings.xml
           test -f v7/app/src/main/java/br/com/bancoamigos/v7/MainActivity.java
           if grep -R -i 'android.permission.BLUETOOTH' v7/app/src/main/AndroidManifest.xml; then echo 'Bluetooth forbidden' && exit 1; fi
       - uses: actions/setup-java@v4
