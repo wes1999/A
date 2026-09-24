@@ -25,6 +25,7 @@ jobs:
           echo 'ade6199897f8a2f4278145eebd1670eeafb4ac968fd0fde29aa9576bf467c1a4  /tmp/banco-v2-patch.tar.xz' | sha256sum --check
           tar -xJf /tmp/banco-v2-patch.tar.xz
           patch -p1 < v2.patch
+          sed -i '122c\                ;' app/src/main/java/br/com/bancoamigos/Wallet.java
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
