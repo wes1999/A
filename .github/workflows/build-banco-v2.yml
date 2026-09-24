@@ -1,0 +1,46 @@
+name: Compilar Banco Amigos V2
+on:
+  push:
+    branches: [banco-amigos-v2]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recuperar projeto anterior
+        shell: bash
+        run: |
+          cat bundle/banco-source.b64.part1 bundle/banco-source.b64.part2 bundle/banco-source.b64.part3a bundle/banco-source.b64.part3b bundle/banco-source.b64.part4a bundle/banco-source.b64.part4b bundle/banco-source.b64.part5a bundle/banco-source.b64.part5b | base64 --decode > /tmp/banco-v1.tar.xz
+          echo '2f191ac959836c3cef4aa7967394611dfe06d3d72a42ccf1cf9c7e153a5a1a56  /tmp/banco-v1.tar.xz' | sha256sum --check
+          rm -rf app
+          rm -f build.gradle.kts settings.gradle.kts
+          tar -xJf /tmp/banco-v1.tar.xz
+      - name: Adicionar teclado com centavos e extrato PDF
+        shell: bash
+        run: |
+          cat bundle/banco-v2-patch.part* | base64 --decode > /tmp/banco-v2-patch.tar.xz
+          echo 'ade6199897f8a2f4278145eebd1670eeafb4ac968fd0fde29aa9576bf467c1a4  /tmp/banco-v2-patch.tar.xz' | sha256sum --check
+          tar -xJf /tmp/banco-v2-patch.tar.xz
+          patch -p1 < v2.patch
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Compilar APK
+        run: gradle --no-daemon assembleDebug
+      - name: Disponibilizar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Banco-Amigos-V2-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
