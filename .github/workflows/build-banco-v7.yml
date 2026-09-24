@@ -1,0 +1,40 @@
+name: Compilar Banco Amigos V7 Online NFC
+on:
+  push:
+    branches: [banco-amigos-v7]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recuperar fontes da V7
+        shell: bash
+        run: |
+          mkdir -p v7
+          cat bundle/banco-v7-source.part* | base64 --decode > /tmp/v7.tar.xz
+          echo '2d1b727c014f97c0e697af0b0d0208599c9892d100e9cc3e2976c1695fdbc17c  /tmp/v7.tar.xz' | sha256sum --check
+          tar -xJf /tmp/v7.tar.xz -C v7
+          test -f v7/app/src/main/java/br/com/bancoamigos/v7/MainActivity.java
+          if grep -R -i 'android.permission.BLUETOOTH' v7/app/src/main/AndroidManifest.xml; then echo 'Bluetooth forbidden' && exit 1; fi
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Compilar APK do usuario
+        working-directory: v7
+        run: gradle --no-daemon :app:assembleDebug --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Banco-Amigos-V7-Usuario-APK
+          path: v7/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
