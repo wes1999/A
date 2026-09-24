@@ -1,0 +1,38 @@
+name: Compilar Banco Amigos
+on:
+  push:
+    branches: [banco-amigos]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restaurar projeto Banco Amigos
+        shell: bash
+        run: |
+          cat bundle/banco-source.b64.part1 bundle/banco-source.b64.part2 bundle/banco-source.b64.part3a bundle/banco-source.b64.part3b bundle/banco-source.b64.part4a bundle/banco-source.b64.part4b bundle/banco-source.b64.part5a bundle/banco-source.b64.part5b | base64 --decode > /tmp/banco-amigos.tar.xz
+          echo "2f191ac959836c3cef4aa7967394611dfe06d3d72a42ccf1cf9c7e153a5a1a56  /tmp/banco-amigos.tar.xz" | sha256sum --check
+          rm -rf app
+          rm -f build.gradle.kts settings.gradle.kts
+          tar -xJf /tmp/banco-amigos.tar.xz
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Gerar APK instalavel
+        run: gradle --no-daemon assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Banco-Amigos-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
