@@ -1,0 +1,65 @@
+name: Banco Amigos V6 (usuario + administrador)
+on:
+  push:
+    branches: [banco-amigos-v6]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruir codigo V5
+        shell: bash
+        run: |
+          cat bundle/banco-source.b64.part1 bundle/banco-source.b64.part2 bundle/banco-source.b64.part3a bundle/banco-source.b64.part3b bundle/banco-source.b64.part4a bundle/banco-source.b64.part4b bundle/banco-source.b64.part5a bundle/banco-source.b64.part5b | base64 --decode > /tmp/v1.tar.xz
+          echo '2f191ac959836c3cef4aa7967394611dfe06d3d72a42ccf1cf9c7e153a5a1a56  /tmp/v1.tar.xz' | sha256sum --check
+          rm -rf app admin
+          rm -f build.gradle.kts settings.gradle.kts
+          tar -xJf /tmp/v1.tar.xz
+          cat bundle/banco-v2-patch.part* | base64 --decode > /tmp/v2.tar.xz
+          echo 'ade6199897f8a2f4278145eebd1670eeafb4ac968fd0fde29aa9576bf467c1a4  /tmp/v2.tar.xz' | sha256sum --check
+          tar -xJf /tmp/v2.tar.xz
+          patch --batch -p1 < v2.patch
+          cat bundle/nfc-v3-patch.part* | base64 --decode > /tmp/v3.patch.xz
+          echo '32738556fac0b958958505a5bebb8dcad6cfc3f360b647377955359a832ab2a9  /tmp/v3.patch.xz' | sha256sum --check
+          xz -d -c /tmp/v3.patch.xz | patch --batch -p1
+          cat bundle/v5-mini.part* | base64 --decode > /tmp/v5-mini.tar.xz
+          echo 'd00cc3cc1267a0b1813bcd1e52f18b47497156d6a62dd82146c924b47f2695e7  /tmp/v5-mini.tar.xz' | sha256sum --check
+          tar -xJf /tmp/v5-mini.tar.xz
+          patch --batch -p1 < main.diff
+          test -f app/src/main/java/br/com/bancoamigos/OnlinePanel.java
+      - name: Adicionar administracao e transferencias online por aproximacao
+        shell: bash
+        run: |
+          cat bundle/banco-v6-patch.part* | base64 --decode > /tmp/v6.patch.xz
+          echo 'f0f57c71db8857c24396fdb972e04ec3290f5d9ff9262b44418c5c209ccc3bfd  /tmp/v6.patch.xz' | sha256sum --check
+          xz -d -c /tmp/v6.patch.xz | patch --batch -p1 --fuzz=0
+          grep -q 'applicationId .br.com.bancoamigos.v6' app/build.gradle
+          grep -q 'applicationId .br.com.bancoamigos.admin.v6' admin/build.gradle
+          test -f admin/src/main/java/br/com/bancoamigos/admin/AdminActivity.java
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Compilar APKs
+        run: gradle --no-daemon :app:assembleDebug :admin:assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Banco-Amigos-V6-Usuario
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Banco-Amigos-V6-Administrador
+          path: admin/build/outputs/apk/debug/admin-debug.apk
+          if-no-files-found: error
+          retention-days: 30
