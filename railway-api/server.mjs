@@ -6,8 +6,8 @@ import pg from 'pg';
 const pbkdf2=promisify(pbkdf2Callback);
 const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,max:8,connectionTimeoutMillis:9000,idleTimeoutMillis:30000});
 const PORT=Number(process.env.PORT||3000);
-const ADMIN_CODE_HASH='938cd587589a75b2bd36eb009bb1a1e2bfef63f5f8b2e05a3545d827c2b61b85';
-if(!process.env.DATABASE_URL)throw Error('Configure DATABASE_URL');
+const ADMIN_CODE_HASHES=[process.env.ADMIN_CODE_SHA256,process.env.ADMIN_CODE_SHA256_V5].filter(x=>typeof x==='string'&&/^[a-f0-9]{64}$/.test(x));
+if(!process.env.DATABASE_URL||ADMIN_CODE_HASHES.length<2)throw Error('Configure DATABASE_URL e os dois hashes administrativos');
 const sqlSchema=[
 "CREATE TABLE IF NOT EXISTS accounts(id UUID PRIMARY KEY,name TEXT NOT NULL,account_key TEXT NOT NULL UNIQUE,pin_salt TEXT NOT NULL,pin_hash TEXT NOT NULL,balance_cents BIGINT NOT NULL DEFAULT 0 CHECK(balance_cents>=0),created_at BIGINT NOT NULL,status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK(status IN ('ACTIVE','SUSPENDED')))",
 "CREATE TABLE IF NOT EXISTS account_keys(key TEXT PRIMARY KEY,account_id UUID NOT NULL REFERENCES accounts(id),created_at BIGINT NOT NULL)",
@@ -87,7 +87,7 @@ async function endpoint(req,res){
    if(path==='/admin/login'&&method==='POST'){
      const b='admin:'+ip,v=String(body.admin_code??'');
      if(!await authLimit(b,5,900000))return fail(res,'Muitas tentativas.',429);
-     if(v.length<16||!eq(hash(v),ADMIN_CODE_HASH)){await authLimit(b,5,900000,true);return fail(res,'Código administrativo incorreto.',403);}
+     if(v.length<16||!ADMIN_CODE_HASHES.some(h=>eq(hash(v),h))){await authLimit(b,5,900000,true);return fail(res,'Código administrativo incorreto.',403);}
      await authLimit(b,5,900000);return send(res,await session());
    }
    if(!await adminAuth(req))return fail(res,'Autenticação administrativa necessária.',401);
