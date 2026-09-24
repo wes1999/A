@@ -18,6 +18,7 @@ jobs:
           rm -rf app
           rm -f build.gradle.kts settings.gradle.kts
           tar -xJf /tmp/banco-amigos.tar.xz
+          sed -i 's/setTextAllCaps(/setAllCaps(/g' app/src/main/java/br/com/bancoamigos/MainActivity.java
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
