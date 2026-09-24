@@ -1,0 +1,50 @@
+name: Compilar Banco Amigos NFC V3
+on:
+  push:
+    branches: [banco-amigos-v3]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recuperar fontes V1 e V2
+        shell: bash
+        run: |
+          cat bundle/banco-source.b64.part1 bundle/banco-source.b64.part2 bundle/banco-source.b64.part3a bundle/banco-source.b64.part3b bundle/banco-source.b64.part4a bundle/banco-source.b64.part4b bundle/banco-source.b64.part5a bundle/banco-source.b64.part5b | base64 --decode > /tmp/v1.tar.xz
+          echo '2f191ac959836c3cef4aa7967394611dfe06d3d72a42ccf1cf9c7e153a5a1a56  /tmp/v1.tar.xz' | sha256sum --check
+          rm -rf app
+          rm -f build.gradle.kts settings.gradle.kts
+          tar -xJf /tmp/v1.tar.xz
+          cat bundle/banco-v2-patch.part* | base64 --decode > /tmp/v2.tar.xz
+          echo 'ade6199897f8a2f4278145eebd1670eeafb4ac968fd0fde29aa9576bf467c1a4  /tmp/v2.tar.xz' | sha256sum --check
+          tar -xJf /tmp/v2.tar.xz
+          patch --batch -p1 < v2.patch
+      - name: Adicionar pagamentos por NFC
+        shell: bash
+        run: |
+          cat bundle/nfc-v3-patch.part* | base64 --decode > /tmp/v3.patch.xz
+          echo '32738556fac0b958958505a5bebb8dcad6cfc3f360b647377955359a832ab2a9  /tmp/v3.patch.xz' | sha256sum --check
+          xz -d -c /tmp/v3.patch.xz > /tmp/v3.patch
+          patch --batch -p1 < /tmp/v3.patch
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Compilar aplicativo
+        run: gradle --no-daemon assembleDebug
+      - name: Publicar APK instalavel
+        uses: actions/upload-artifact@v4
+        with:
+          name: Banco-Amigos-NFC-V3-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
