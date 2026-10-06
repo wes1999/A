@@ -6,6 +6,8 @@ import android.content.*;
 import android.graphics.*;
 import android.net.Uri;
 import android.provider.Settings;
+import android.app.AlarmManager;
+import android.app.PendingIntent;
 import android.view.*;
 import android.widget.*;
 import java.io.*;
@@ -51,6 +53,10 @@ public class MainActivity extends Activity {
         digital.setGravity(Gravity.CENTER);
         root.addView(digital,new LinearLayout.LayoutParams(-1,65));
 
+        alarmStatus = text("Despertador virtual: desativado",13,Color.rgb(255,190,50));
+        alarmStatus.setGravity(Gravity.CENTER);
+        root.addView(alarmStatus,new LinearLayout.LayoutParams(-1,38));
+
         TextView rule = text("1 minuto real = 1 hora virtual  •  24 min = 1 dia",13,Color.LTGRAY);
         rule.setGravity(Gravity.CENTER);
         root.addView(rule,new LinearLayout.LayoutParams(-1,45));
@@ -64,14 +70,17 @@ public class MainActivity extends Activity {
         Button set = button("CONFIGURAR");
         Button backup = button("BACKUP");
         Button restore = button("RESTAURAR");
+        Button alarm = button("DESPERTADOR");
         row.addView(set,new LinearLayout.LayoutParams(0,58,1));
         row.addView(backup,new LinearLayout.LayoutParams(0,58,1));
         row.addView(restore,new LinearLayout.LayoutParams(0,58,1));
+        root.addView(alarm,new LinearLayout.LayoutParams(-1,58));
         root.addView(row);
 
         set.setOnClickListener(v->configure());
         backup.setOnClickListener(v->backup());
         restore.setOnClickListener(v->restore());
+        alarm.setOnClickListener(v->configureAlarm());
         setContentView(root);
     }
 
@@ -82,8 +91,48 @@ public class MainActivity extends Activity {
         ClockEngine.Result r=engine.now();
         digital.setText(r.time.format(DateTimeFormatter.ofPattern("HH:mm:ss"))+"\n"+r.time.format(DateTimeFormatter.ofPattern("EEEE, dd/MM/yyyy",new Locale("pt","BR"))));
         status.setText("Velocidade: 60×  •  "+(r.clockChanged ? "⚠ horário do aparelho alterado; referência ajustada" : "sincronizado pelo tempo decorrido"));
+        updateAlarmStatus();
         clockView.setTime(r.time);
         handler.postDelayed(this::tick,100);
+    }
+
+    void configureAlarm(){
+        final EditText h=new EditText(this); h.setHint("Hora virtual (0–23)"); h.setInputType(2); 
+        final EditText m=new EditText(this); m.setHint("Minuto virtual (0–59)"); m.setInputType(2);
+        LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.HORIZONTAL); box.setPadding(20,0,20,0);
+        box.addView(h,new LinearLayout.LayoutParams(0,70,1)); box.addView(m,new LinearLayout.LayoutParams(0,70,1));
+        LocalDateTime n=engine.now(); h.setText(String.valueOf(n.getHour())); m.setText(String.valueOf(n.getMinute()));
+        new AlertDialog.Builder(this).setTitle("Despertador virtual").setMessage("O celular tocará quando o relógio virtual atingir essa hora.\nEx.: 08:30 virtual = 30 segundos reais a partir das 08:00.")
+          .setView(box).setPositiveButton("ATIVAR",(d,w)->{
+            try {
+              int hh=Integer.parseInt(h.getText().toString().trim()), mm=Integer.parseInt(m.getText().toString().trim());
+              if(hh<0||hh>23||mm<0||mm>59) throw new Exception();
+              scheduleVirtualAlarm(hh,mm);
+            } catch(Exception e){ Toast.makeText(this,"Hora inválida.",Toast.LENGTH_LONG).show(); }
+          }).setNeutralButton("DESATIVAR",(d,w)->cancelVirtualAlarm()).setNegativeButton("CANCELAR",null).show();
+    }
+    void scheduleVirtualAlarm(int hh,int mm){
+        LocalDateTime now=engine.now();
+        LocalDateTime target=now.withHour(hh).withMinute(mm).withSecond(0).withNano(0);
+        if(!target.isAfter(now)) target=target.plusDays(1);
+        long realDelay=Math.max(1000L,(target.toEpochSecond(java.time.ZoneOffset.UTC)-now.toEpochSecond(java.time.ZoneOffset.UTC))*1000L/60L);
+        getSharedPreferences("clock_alarm",0).edit().putBoolean("enabled",true).putInt("hour",hh).putInt("minute",mm).apply();
+        AlarmManager am=(AlarmManager)getSystemService(ALARM_SERVICE);
+        Intent i=new Intent(this,VirtualAlarmReceiver.class);
+        PendingIntent pi=PendingIntent.getBroadcast(this,9001,i,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+        am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP,SystemClock.elapsedRealtime()+realDelay,pi);
+        Toast.makeText(this,"Despertador ativado para "+String.format(Locale.US,"%02d:%02d",hh,mm)+" virtual.",Toast.LENGTH_LONG).show();
+    }
+    void cancelVirtualAlarm(){
+        getSharedPreferences("clock_alarm",0).edit().putBoolean("enabled",false).apply();
+        Intent i=new Intent(this,VirtualAlarmReceiver.class);
+        PendingIntent pi=PendingIntent.getBroadcast(this,9001,i,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+        ((AlarmManager)getSystemService(ALARM_SERVICE)).cancel(pi);
+        Toast.makeText(this,"Despertador virtual desativado.",Toast.LENGTH_SHORT).show();
+    }
+    void updateAlarmStatus(){
+        android.content.SharedPreferences a=getSharedPreferences("clock_alarm",0);
+        if(alarmStatus!=null) alarmStatus.setText(a.getBoolean("enabled",false) ? "Despertador virtual: "+String.format(Locale.US,"%02d:%02d",a.getInt("hour",0),a.getInt("minute",0))+" ✓" : "Despertador virtual: desativado");
     }
 
     void configure(){
