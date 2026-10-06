@@ -20,7 +20,7 @@ public class VirtualAlarmReceiver extends BroadcastReceiver {
     if(!a.getBoolean("enabled",false)) return;
     try{
       MainActivity.ClockEngine e=new MainActivity.ClockEngine(c);
-      LocalDateTime now=e.now(), target=now.withHour(a.getInt("hour",0)).withMinute(a.getInt("minute",0)).withSecond(0).withNano(0);
+      LocalDateTime now=e.now().time, target=now.withHour(a.getInt("hour",0)).withMinute(a.getInt("minute",0)).withSecond(0).withNano(0);
       if(!target.isAfter(now)) target=target.plusDays(1);
       long delay=Math.max(1000L,(target.toEpochSecond(java.time.ZoneOffset.UTC)-now.toEpochSecond(java.time.ZoneOffset.UTC))*1000L/60L);
       Intent i=new Intent(c,VirtualAlarmReceiver.class);
