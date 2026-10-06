@@ -95,7 +95,7 @@ public class MainActivity extends Activity {
                 try {
                     LocalDate ld=LocalDate.parse(date.getText().toString().trim());
                     LocalTime lt=LocalTime.parse(time.getText().toString().trim());
-                    engine.set(ld.atDate(lt));
+                    engine.set(LocalDateTime.of(ld,lt));
                 } catch(Exception e){ Toast.makeText(this,"Data/hora inválida.",Toast.LENGTH_LONG).show(); }
             }).setNegativeButton("CANCELAR",null).show();
     }
