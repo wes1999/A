@@ -102,7 +102,7 @@ public class MainActivity extends Activity {
         final EditText m=new EditText(this); m.setHint("Minuto virtual (0–59)"); m.setInputType(2);
         LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.HORIZONTAL); box.setPadding(20,0,20,0);
         box.addView(h,new LinearLayout.LayoutParams(0,70,1)); box.addView(m,new LinearLayout.LayoutParams(0,70,1));
-        LocalDateTime n=engine.now(); h.setText(String.valueOf(n.getHour())); m.setText(String.valueOf(n.getMinute()));
+        LocalDateTime n=engine.now().time; h.setText(String.valueOf(n.getHour())); m.setText(String.valueOf(n.getMinute()));
         new AlertDialog.Builder(this).setTitle("Despertador virtual").setMessage("O celular tocará quando o relógio virtual atingir essa hora.\nEx.: 08:30 virtual = 30 segundos reais a partir das 08:00.")
           .setView(box).setPositiveButton("ATIVAR",(d,w)->{
             try {
@@ -113,7 +113,7 @@ public class MainActivity extends Activity {
           }).setNeutralButton("DESATIVAR",(d,w)->cancelVirtualAlarm()).setNegativeButton("CANCELAR",null).show();
     }
     void scheduleVirtualAlarm(int hh,int mm){
-        LocalDateTime now=engine.now();
+        LocalDateTime now=engine.now().time;
         LocalDateTime target=now.withHour(hh).withMinute(mm).withSecond(0).withNano(0);
         if(!target.isAfter(now)) target=target.plusDays(1);
         long realDelay=Math.max(1000L,(target.toEpochSecond(java.time.ZoneOffset.UTC)-now.toEpochSecond(java.time.ZoneOffset.UTC))*1000L/60L);
