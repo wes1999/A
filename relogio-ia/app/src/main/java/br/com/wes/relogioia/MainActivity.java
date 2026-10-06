@@ -20,7 +20,7 @@ import java.util.*;
 public class MainActivity extends Activity {
     ClockEngine engine;
     ClockView clockView;
-    TextView digital, status;
+    TextView digital, status, alarmStatus;
     Handler handler = new Handler(Looper.getMainLooper());
     final DateTimeFormatter DF = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
 
