@@ -2,7 +2,7 @@ name: Compilar Astro S24
 
 on:
   push:
-    branches: [astro-s24]
+    branches: [main, astro-s24]
   workflow_dispatch:
 
 permissions:
