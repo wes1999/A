@@ -1,8 +1,8 @@
-name: Compilar Pop 110 Digital V2
+name: Compilar Astro S24
 
 on:
   push:
-    branches: [main]
+    branches: [astro-s24]
   workflow_dispatch:
 
 permissions:
@@ -17,9 +17,7 @@ jobs:
       - name: Restaurar código do aplicativo
         shell: bash
         run: |
-          cat bundle/part-0*.b64 | base64 --decode > /tmp/pop110-v2-source.tar.xz
-          echo "8be9fb6eadf658f4c1cd3b0d3bc506990a921309703d1e1044dbf5ba5f211c74  /tmp/pop110-v2-source.tar.xz" | sha256sum --check
-          tar -xJf /tmp/pop110-v2-source.tar.xz
+          echo "Usando projeto astro-s24"
 
       - uses: actions/setup-java@v4
         with:
@@ -43,16 +41,18 @@ jobs:
           gradle-version: '8.9'
 
       - name: Testes do filtro
+        working-directory: astro-s24
         run: gradle --no-daemon testDebugUnitTest
 
       - name: Gerar APK
+        working-directory: astro-s24
         run: gradle --no-daemon assembleDebug
 
       - name: Disponibilizar APK para download
         uses: actions/upload-artifact@v4
         with:
-          name: Pop110Digital-V2-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: AstroS24-APK
+          path: astro-s24/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
 
