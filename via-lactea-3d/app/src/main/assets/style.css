@@ -1,0 +1,28 @@
+:root{color-scheme:dark;--ink:#eff5ff;--muted:#9aabc8;--border:rgba(155,193,255,.17);--panel:rgba(10,19,38,.84);font-family:Roboto,"Segoe UI",system-ui,sans-serif}
+*{box-sizing:border-box}html,body{height:100%;margin:0;background:#030713;overflow:hidden;color:var(--ink);user-select:none;-webkit-user-select:none}
+#sky{position:absolute;inset:0;display:block;touch-action:none}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.space-label{position:absolute;display:block;transform:translate(10px,-100%);font-size:11px;font-weight:600;color:#e3ecff;text-shadow:0 0 5px #000,0 0 11px #000;white-space:nowrap;opacity:.9;pointer-events:none}
+#earthBall{display:none;position:absolute;z-index:1;pointer-events:none;border-radius:50%;transform:translate(-50%,-50%);background:radial-gradient(ellipse at 30% 24%,rgba(240,255,255,.8),transparent 14%),radial-gradient(ellipse at 38% 30%,#4b9f49 0%,#278044 12%,transparent 19%),radial-gradient(ellipse at 64% 42%,#307f48 0%,#194c43 18%,transparent 24%),radial-gradient(ellipse at 53% 71%,#3a8340 0%,transparent 18%),radial-gradient(circle at 30% 24%,#65cff2 0%,#1a5bb5 42%,#061731 78%,#01070e 100%);box-shadow:inset -15px -10px 32px rgba(0,0,0,.85),0 0 15px rgba(72,151,244,.45)}
+.header{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(18px + env(safe-area-inset-top)) 20px 10px;pointer-events:none;background:linear-gradient(180deg,rgba(2,5,12,.81),transparent)}
+.brand{display:flex;gap:10px;align-items:center}.symbol{font-size:29px;color:#83aefe;text-shadow:0 0 15px #4786ea}
+.brand strong{display:block;font-size:17px;letter-spacing:1.5px}.brand em{font-size:11px;font-style:normal;color:#7caafe;border:1px solid #557dbd;border-radius:4px;padding:1px 3px;margin-left:3px;vertical-align:middle}
+.brand small{font-size:9px;letter-spacing:2.2px;color:#8d9db5;display:block;margin-top:3px}
+.reset{pointer-events:auto;background:rgba(22,34,54,.78);color:#d8e9ff;border:1px solid var(--border);width:39px;height:39px;border-radius:50%;font-size:25px}
+.hint{position:absolute;top:calc(92px + env(safe-area-inset-top));left:0;right:0;text-align:center;color:#a8bddb;font-size:11px;pointer-events:none;text-shadow:0 0 6px #000}
+.control{position:absolute;bottom:0;left:0;right:0;padding:17px 18px calc(13px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(8,14,28,.8),rgba(10,18,36,.96));border-top:1px solid var(--border);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.stats{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:16px}
+.stat-label{font-size:9px;letter-spacing:1.3px;color:#8b9db8;margin-bottom:4px}
+.stat-value{font-size:15px;font-weight:650;white-space:nowrap}.align-right{text-align:right}
+.range-title{display:flex;justify-content:space-between;color:#8193b2;font-size:9px;letter-spacing:1.5px}
+#zoom{display:block;width:100%;height:32px;margin:2px 0 14px;accent-color:#77a8ff;direction:rtl;touch-action:pan-x}
+.places{display:flex;gap:8px}.places button{flex:1;border:1px solid rgba(109,163,244,.35);border-radius:10px;padding:12px 4px;background:rgba(46,76,128,.28);color:#e8f2ff;font-size:13px;white-space:nowrap}
+.places button:active{background:rgba(78,119,190,.5)}
+.places span{font-weight:600}
+.options{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px}
+.options label{font-size:11px;color:#9eb2d2}.options select{background:#15223b;color:#e7f0ff;border:1px solid var(--border);border-radius:6px;padding:5px 7px;font-size:11px;margin-left:5px}
+.footnote{text-align:center;font-size:10px;color:#b4c3dd;margin:12px 0 0;line-height:1.4}
+.source{text-align:center;margin:6px 0 0;font-size:9px;color:#6c7e99}
+#error{position:absolute;z-index:10;top:40%;left:7%;right:7%;text-align:center;background:rgba(20,19,38,.7);font-size:14px}
+#error:empty{display:none}
+@media(max-height:670px){.hint{display:none}.control{padding-top:10px}.stats{margin-bottom:8px}.places button{padding:8px 3px}.options{margin-top:7px}.footnote,.source{display:none}}
