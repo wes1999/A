@@ -311,11 +311,20 @@ public class MainActivity extends Activity {
 
         addText(modeArea,"HORÁRIO DE INÍCIO DO CICLO DE 24 HORAS",12,TEXT,true);
         addSpace(modeArea,6);
-        Button startAt=button(SunMath.clock(cycleClockStart),false);
+        Button startAt=button("ESCOLHER HORÁRIO: "+clockHHmm(cycleClockStart),false);
         modeArea.addView(startAt,new LinearLayout.LayoutParams(-1,dp(48)));
         startAt.setOnClickListener(v->chooseCycleClockStart());
-        addSpace(modeArea,6);
-        addText(modeArea,"Neste horário do celular, o dia simulado começa às 00h00 e repete o ciclo a cada 24 horas. As fases abaixo são horários do dia simulado.",12,MUTED,false);
+        addSpace(modeArea,8);
+        Button useNow=button("USAR O HORÁRIO ATUAL DO S24",true);
+        modeArea.addView(useNow,new LinearLayout.LayoutParams(-1,dp(48)));
+        useNow.setOnClickListener(v->{
+            Calendar current=Calendar.getInstance();
+            cycleClockStart=current.get(Calendar.HOUR_OF_DAY)*60+current.get(Calendar.MINUTE);
+            save();
+            renderControls();
+        });
+        addSpace(modeArea,9);
+        addText(modeArea,"No horário escolhido, o relógio do ciclo começa às 00h00 e completa 24 horas reais. Se usar a hora atual, o ciclo começa agora.",12,MUTED,false);
         addSpace(modeArea,17);
 
         addText(modeArea,"Início do amanhecer astronômico (Sol a −18°)",12,TEXT,true);
@@ -334,6 +343,27 @@ public class MainActivity extends Activity {
         addSpace(modeArea,12);
         Button editLoc=button("EDITAR LOCALIZAÇÃO PARA OS CÁLCULOS",false);
         modeArea.addView(editLoc);editLoc.setOnClickListener(v->showCoordinatesDialog());
+        addSpace(modeArea,19);
+        addText(modeArea,"RESTAURAR CONFIGURAÇÕES",12,ACCENT,true);
+        addSpace(modeArea,8);
+        Button resetCycle=button("VOLTAR O CICLO 24H AO PADRÃO",false);
+        modeArea.addView(resetCycle,new LinearLayout.LayoutParams(-1,dp(48)));
+        resetCycle.setOnClickListener(v->new AlertDialog.Builder(this)
+            .setTitle("Restaurar Ciclo 24h?")
+            .setMessage("A data voltará para hoje, o início será 00:00, o amanhecer às 06:00 e o entardecer às 18:00. As outras configurações serão mantidas.")
+            .setNegativeButton("Cancelar",null)
+            .setPositiveButton("Restaurar",(dialog,which)->{
+                resetCycleDefaults();save();renderControls();
+            }).show());
+        addSpace(modeArea,9);
+        Button resetAll=button("RESTAURAR TODO O APLICATIVO",false);
+        modeArea.addView(resetAll,new LinearLayout.LayoutParams(-1,dp(48)));
+        resetAll.setOnClickListener(v->new AlertDialog.Builder(this)
+            .setTitle("Restaurar todos os padrões?")
+            .setMessage("Isso redefinirá data, horários, brilho, Kelvin, localização, limites, temporizador e demais preferências. Deseja continuar?")
+            .setNegativeButton("Cancelar",null)
+            .setPositiveButton("Restaurar tudo",(dialog,which)->resetAllDefaults())
+            .show());
     }
 
     private void buildAccelerated() {
@@ -361,6 +391,44 @@ public class MainActivity extends Activity {
             if(morning)dawnStart=h*60+m;else duskStart=h*60+m;
             save();renderControls();
         },start/60,start%60,true).show();
+    }
+
+    private String clockHHmm(int minute) {
+        return String.format(Locale.forLanguageTag("pt-BR"),"%02d:%02d",minute/60,minute%60);
+    }
+
+    private void resetCycleDefaults() {
+        Calendar current=Calendar.getInstance();
+        selectedDay=current.get(Calendar.DAY_OF_MONTH);
+        selectedMonth=current.get(Calendar.MONTH)+1;
+        selectedYear=current.get(Calendar.YEAR);
+        cycleClockStart=0;
+        dawnStart=6*60;
+        duskStart=18*60;
+        cachedPlan=null;
+        planKey="";
+    }
+
+    private void resetAllDefaults() {
+        getPreferences(MODE_PRIVATE).edit().clear().apply();
+        resetCycleDefaults();
+        manualK=2700;
+        manualB=48;
+        maxB=80;
+        mode=2;
+        accelerateHours=6;
+        accelerateStart=SystemClock.elapsedRealtime();
+        sessionChoice=5;
+        lightSessionEnds=0;
+        screenHold=false;
+        lat=-19.36;
+        lon=-42.52;
+        userLocation=false;
+        if(locationManager!=null&&locationListener!=null) {
+            try {locationManager.removeUpdates(locationListener);} catch(Exception ignored) {}
+        }
+        save();
+        renderControls();
     }
 
     private String selectedDateText() {
