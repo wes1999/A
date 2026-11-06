@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.TimePickerDialog;
+import android.app.DatePickerDialog;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Canvas;
@@ -47,7 +48,7 @@ public class MainActivity extends Activity {
     private Button[] tabs = new Button[4];
     private LightSurface lightSurface;
     private boolean showingLight=false, screenHold=false, userLocation=false, expired=false;
-    private int mode=0, manualK=2700, manualB=48, maxB=80, dawnStart=360, duskStart=1080, accelerateHours=6, sessionChoice=5;
+    private int mode=0, manualK=2700, manualB=48, maxB=80, dawnStart=360, duskStart=1080, cycleClockStart=0, selectedDay, selectedMonth, selectedYear, accelerateHours=6, sessionChoice=5;
     private double lat=-19.36, lon=-42.52;
     private long accelerateStart=0, lightSessionEnds=0;
     private LocationManager locationManager;
@@ -76,6 +77,11 @@ public class MainActivity extends Activity {
         mode=sp.getInt("mode",0);
         dawnStart=sp.getInt("dawnStart",360);
         duskStart=sp.getInt("duskStart",1080);
+        cycleClockStart=sp.getInt("cycleClockStart",0);
+        Calendar startingDate=Calendar.getInstance();
+        selectedDay=sp.getInt("selectedDay",startingDate.get(Calendar.DAY_OF_MONTH));
+        selectedMonth=sp.getInt("selectedMonth",startingDate.get(Calendar.MONTH)+1);
+        selectedYear=sp.getInt("selectedYear",startingDate.get(Calendar.YEAR));
         accelerateHours=sp.getInt("accHours",6);
         screenHold=sp.getBoolean("screenHold",false);
         lat=Double.longBitsToDouble(sp.getLong("lat",Double.doubleToLongBits(-19.36)));
@@ -89,7 +95,9 @@ public class MainActivity extends Activity {
     private void save() {
         getPreferences(MODE_PRIVATE).edit().putInt("manualK",manualK).putInt("manualB",manualB)
             .putInt("maxB",maxB).putInt("mode",mode).putInt("dawnStart",dawnStart)
-            .putInt("duskStart",duskStart).putInt("accHours",accelerateHours)
+            .putInt("duskStart",duskStart).putInt("cycleClockStart",cycleClockStart)
+            .putInt("selectedDay",selectedDay).putInt("selectedMonth",selectedMonth).putInt("selectedYear",selectedYear)
+            .putInt("accHours",accelerateHours)
             .putBoolean("screenHold",screenHold)
             .putBoolean("userLocation",userLocation)
             .putLong("lat",Double.doubleToLongBits(lat))
@@ -281,8 +289,35 @@ public class MainActivity extends Activity {
     private void buildCustom() {
         addText(modeArea,"CICLO ASTRONÔMICO PERSONALIZADO",15,ACCENT,true);
         addSpace(modeArea,7);
-        addText(modeArea,"Você escolhe os horários; cada crepúsculo mantém a duração calculada pela latitude e pela data.",12,MUTED,false);
-        addSpace(modeArea,14);
+        addText(modeArea,"Escolha a data de referência, o começo do ciclo e os horários do Sol. As fases do crepúsculo são calculadas pela latitude.",12,MUTED,false);
+        addSpace(modeArea,15);
+
+        addText(modeArea,"DATA DO DIA SIMULADO (DD/MM/AAAA)",12,TEXT,true);
+        addSpace(modeArea,6);
+        Button date=button(selectedDateText(),false);
+        modeArea.addView(date,new LinearLayout.LayoutParams(-1,dp(48)));
+        date.setOnClickListener(v->chooseSimulationDate());
+        addSpace(modeArea,6);
+        Button today=button("USAR A DATA DE HOJE",false);
+        modeArea.addView(today,new LinearLayout.LayoutParams(-1,dp(42)));
+        today.setOnClickListener(v->{
+            Calendar c=now();
+            selectedDay=c.get(Calendar.DAY_OF_MONTH);
+            selectedMonth=c.get(Calendar.MONTH)+1;
+            selectedYear=c.get(Calendar.YEAR);
+            cachedPlan=null;save();renderControls();
+        });
+        addSpace(modeArea,17);
+
+        addText(modeArea,"HORÁRIO DE INÍCIO DO CICLO DE 24 HORAS",12,TEXT,true);
+        addSpace(modeArea,6);
+        Button startAt=button(SunMath.clock(cycleClockStart),false);
+        modeArea.addView(startAt,new LinearLayout.LayoutParams(-1,dp(48)));
+        startAt.setOnClickListener(v->chooseCycleClockStart());
+        addSpace(modeArea,6);
+        addText(modeArea,"Neste horário do celular, o dia simulado começa às 00h00 e repete o ciclo a cada 24 horas. As fases abaixo são horários do dia simulado.",12,MUTED,false);
+        addSpace(modeArea,17);
+
         addText(modeArea,"Início do amanhecer astronômico (Sol a −18°)",12,TEXT,true);
         addSpace(modeArea,6);
         Button dawn=button(SunMath.clock(dawnStart),false);
@@ -326,6 +361,42 @@ public class MainActivity extends Activity {
             if(morning)dawnStart=h*60+m;else duskStart=h*60+m;
             save();renderControls();
         },start/60,start%60,true).show();
+    }
+
+    private String selectedDateText() {
+        return String.format(Locale.forLanguageTag("pt-BR"),"%02d/%02d/%04d",
+            selectedDay,selectedMonth,selectedYear);
+    }
+
+    private void chooseSimulationDate() {
+        DatePickerDialog dialog=new DatePickerDialog(this,(picker,year,month,day)->{
+            selectedDay=day;selectedMonth=month+1;selectedYear=year;
+            cachedPlan=null;planKey="";save();renderControls();
+        },selectedYear,selectedMonth-1,selectedDay);
+        Calendar min=Calendar.getInstance(),max=Calendar.getInstance();
+        min.clear();min.set(1900,Calendar.JANUARY,1);
+        max.clear();max.set(2100,Calendar.DECEMBER,31);
+        dialog.getDatePicker().setMinDate(min.getTimeInMillis());
+        dialog.getDatePicker().setMaxDate(max.getTimeInMillis());
+        dialog.show();
+    }
+
+    private void chooseCycleClockStart() {
+        new TimePickerDialog(this,(picker,hour,minute)->{
+            cycleClockStart=hour*60+minute;
+            save();renderControls();
+        },cycleClockStart/60,cycleClockStart%60,true).show();
+    }
+
+    private Calendar referenceDay() {
+        Calendar c=now();
+        if(mode==2) {
+            c.set(Calendar.DAY_OF_MONTH,1);
+            c.set(Calendar.YEAR,selectedYear);
+            c.set(Calendar.MONTH,selectedMonth-1);
+            c.set(Calendar.DAY_OF_MONTH,selectedDay);
+        }
+        return c;
     }
 
     private void showCoordinatesDialog() {
@@ -393,7 +464,9 @@ public class MainActivity extends Activity {
     private double virtualMinute() {
         if(mode!=3) {
             Calendar c=now();
-            return c.get(Calendar.HOUR_OF_DAY)*60+c.get(Calendar.MINUTE)+c.get(Calendar.SECOND)/60.0;
+            double local=c.get(Calendar.HOUR_OF_DAY)*60+c.get(Calendar.MINUTE)+c.get(Calendar.SECOND)/60.0;
+            if(mode==2) return (local-cycleClockStart+1440.0)%1440.0;
+            return local;
         }
         double cycleMs=accelerateHours*3600000.0;
         return ((SystemClock.elapsedRealtime()-accelerateStart)%((long)cycleMs))/cycleMs*1440.0;
@@ -408,7 +481,7 @@ public class MainActivity extends Activity {
     }
 
     private void updateLive() {
-        Calendar today=now();
+        Calendar today=referenceDay();
         double minute=virtualMinute();
         lastVirtualMinute=minute;
         lastAltitude=mode==0?0:altitudeFor(today,minute);
@@ -424,7 +497,8 @@ public class MainActivity extends Activity {
             }
             if(headerStatus!=null){
                 String state = mode==0?"Controle manual":
-                    (mode==3?"Hora virtual: ":"Hora local: ")+SunMath.clock(minute);
+                    (mode==1?"Hora local: ":"Hora do ciclo: ")+SunMath.clock(minute);
+                if(mode==2) state+=" | Data: "+selectedDateText();
                 String alt=mode==0?"":String.format(Locale.forLanguageTag("pt-BR")," • Altitude solar %.1f°",lastAltitude);
                 headerStatus.setText(state+alt);
             }
@@ -461,15 +535,18 @@ public class MainActivity extends Activity {
         double dawnOffset=mode==2?dawnStart-p.dawn[0]:0;
         double duskOffset=mode==2?duskStart-p.dusk[3]:0;
         StringBuilder sb=new StringBuilder();
+        if(mode==2)sb.append("Data: ").append(selectedDateText())
+            .append(" | Início do ciclo: ").append(SunMath.clock(cycleClockStart))
+            .append("\nHorários reais do relógio (já ajustados para o começo do ciclo)\n");
         sb.append("\nMANHÃ\n");
         for(int i=0;i<4;i++) {
             String name=i==3?"Nascer do Sol":("Início "+SunMath.PHASES[i].toLowerCase(Locale.ROOT));
-            sb.append("  ").append(SunMath.clock(p.dawn[i]+dawnOffset)).append("   ").append(name).append('\n');
+            sb.append("  ").append(SunMath.clock(p.dawn[i]+dawnOffset+(mode==2?cycleClockStart:0))).append("   ").append(name).append('\n');
         }
         sb.append("\nTARDE / NOITE\n");
         for(int i=3;i>=0;i--) {
             String name=i==3?"Pôr do Sol":("Início "+SunMath.PHASES[i].toLowerCase(Locale.ROOT));
-            sb.append("  ").append(SunMath.clock(p.dusk[i]+duskOffset)).append("   ").append(name).append('\n');
+            sb.append("  ").append(SunMath.clock(p.dusk[i]+duskOffset+(mode==2?cycleClockStart:0))).append("   ").append(name).append('\n');
         }
         double dawnDuration=p.dawn[3]-p.dawn[0];
         double duskDuration=p.dusk[0]-p.dusk[3];
@@ -488,7 +565,7 @@ public class MainActivity extends Activity {
 
     private void startLight() {
         if(mode==2) {
-            SunMath.Plan p=getPlan(now());
+            SunMath.Plan p=getPlan(referenceDay());
             double ss=duskStart<=dawnStart?duskStart+1440:duskStart;
             if(p.valid() && (dawnStart+p.dawn[3]-p.dawn[0]>=ss || ss+p.dusk[0]-p.dusk[3]>=dawnStart+1440)) {
                 new AlertDialog.Builder(this).setMessage("Os horários personalizados se sobrepõem. Ajuste-os antes de iniciar.").setPositiveButton("OK",null).show();return;
@@ -545,7 +622,7 @@ public class MainActivity extends Activity {
         @Override protected void onDraw(Canvas c) {
             super.onDraw(c);
             int w=getWidth(),h=getHeight(), top=dp(5), barHeight=dp(44);
-            Calendar day=now();
+            Calendar day=referenceDay();
             double segment=Math.max(1.0,w/240.0);
             for(double x=0;x<w;x+=segment) {
                 double min=1440.0*x/w;
