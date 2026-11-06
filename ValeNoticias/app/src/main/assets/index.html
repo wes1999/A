@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="pt-br"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08101c"><title>Vale Notícias</title>
+<style>
+:root{--bg:#08101c;--card:#111e30;--card2:#17273c;--line:#24364a;--muted:#8da0b5;--text:#eaf4ff;--mint:#57e4b9;--blue:#89b9ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased}button,input,select{font:inherit}button{cursor:pointer}
+header{padding:24px 18px 16px;background:radial-gradient(ellipse at 88% 0%,#1c4650 0%,#0c1827 52%,#08101c 100%);border-bottom:1px solid var(--line)}
+.topline{display:flex;align-items:center;justify-content:space-between;gap:10px}.logo{height:42px;width:42px;border-radius:14px;background:var(--mint);display:grid;place-items:center;color:#07362b;font-size:24px;font-weight:900;box-shadow:0 5px 24px #57e4b925}
+.brand{display:flex;align-items:center;gap:10px}.brand strong{display:block;font-size:19px;letter-spacing:-.5px}.eyebrow{font-size:10px;font-weight:800;letter-spacing:1.5px;color:var(--mint);text-transform:uppercase}.sub{color:var(--muted);font-size:12px;margin-top:3px}
+.iconbtn{width:42px;height:42px;border:1px solid var(--line);border-radius:13px;background:var(--card);color:var(--text);font-size:19px;display:grid;place-items:center}
+.hero{padding-top:24px}.hero h1{font-size:27px;letter-spacing:-1px;line-height:1.16;margin:0 0 8px;font-weight:800}.hero h1 span{color:var(--mint)}.hero p{font-size:13px;color:var(--muted);line-height:1.55;margin:0}
+.counts{display:flex;gap:9px;margin-top:22px}.count{background:#15283b99;border:1px solid #2b47565e;border-radius:13px;padding:12px 13px;flex:1}.count b{font-size:20px;display:block}.count span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px}
+main{padding:18px 16px 90px;max-width:850px;margin:auto}.sectionrow{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:4px 2px 13px}.sectionrow b{font-size:16px;letter-spacing:-.3px}.pill{font-size:11px;border:1px solid #2b5c4f;color:var(--mint);padding:6px 9px;border-radius:18px;background:#1f5f4d24}
+.cities{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:2px 2px 12px;margin-right:-16px}.cities::-webkit-scrollbar{display:none}.city{white-space:nowrap;background:var(--card);color:#b4c5d6;border:1px solid var(--line);border-radius:999px;padding:10px 14px;font-weight:650;font-size:12px}.city.active{background:var(--mint);color:#062f29;border-color:var(--mint)}.city.add{font-size:17px;padding:7px 14px}
+.toolbar{display:flex;gap:9px;margin:9px 0 18px}.search{flex:1;display:flex;align-items:center;border:1px solid var(--line);background:var(--card);border-radius:13px;min-width:0;padding-left:12px}.search input{width:100%;border:0;outline:0;background:transparent;padding:12px 10px;color:var(--text);font-size:13px}.search input::placeholder{color:#778da3}.refresh{background:#225b4d;color:#aafde0;border:1px solid #31765f;border-radius:13px;padding:0 15px;font-size:17px}.refresh:active{transform:scale(.98)}
+.status{color:var(--muted);font-size:12px;line-height:1.5;min-height:20px;margin:0 2px 14px}.status strong{color:var(--mint)}
+.items{display:grid;grid-template-columns:1fr;gap:11px}.article{background:linear-gradient(145deg,#16253a,#111e30);border:1px solid #293b51;border-radius:17px;padding:16px;overflow:hidden}.a-top{display:flex;align-items:center;justify-content:space-between;gap:10px}.source{font-size:11px;font-weight:750;color:var(--mint);max-width:68%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.date{font-size:11px;color:var(--muted)}.article h3{margin:12px 0 8px;font-size:16px;line-height:1.42;letter-spacing:-.25px}.article p{font-size:13px;line-height:1.6;color:#a9bed0;margin:0;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}.a-foot{display:flex;justify-content:space-between;align-items:center;margin-top:17px;border-top:1px solid #293b51;padding-top:12px}.read{border:0;background:transparent;color:var(--blue);font-size:12px;font-weight:750;padding:5px 0}.fav{border:0;background:transparent;color:#8499ae;font-size:21px;padding:4px 10px}.fav.on{color:#ffd57a}.note{margin:18px 3px;color:#8297ac;font-size:11px;line-height:1.65}
+.empty{padding:42px 18px;text-align:center;border:1px dashed #31465b;border-radius:19px;background:#101b2a}.empty .sym{font-size:35px}.empty b{display:block;margin:12px 0 6px}.empty p{font-size:12px;line-height:1.65;color:var(--muted)}
+.overlay{display:none;position:fixed;inset:0;z-index:10;background:#030a12ca;align-items:flex-end;justify-content:center}.overlay.show{display:flex}.sheet{width:100%;max-width:620px;max-height:93vh;overflow-y:auto;background:#101d2e;border-radius:24px 24px 0 0;border:1px solid #30445b;padding:22px 18px 34px;box-shadow:0 -10px 45px #0008}.sheet h2{margin:0 0 6px;font-size:20px}.sheet .desc{font-size:12px;line-height:1.55;color:var(--muted);margin:0 0 20px}.sheet-head{display:flex;align-items:center;justify-content:space-between}.close{border:0;background:transparent;color:white;font-size:24px}.field{margin-bottom:13px}.field label{display:block;color:#a9bed0;font-size:12px;margin-bottom:7px}.field input,.field select{display:block;width:100%;padding:12px 13px;border-radius:12px;background:#0b1625;color:var(--text);border:1px solid var(--line);outline:none}.primary{width:100%;background:var(--mint);color:#062c25;border:0;border-radius:12px;padding:13px;font-weight:800;margin:4px 0 18px}.srclist{display:grid;gap:9px}.srcrow{display:flex;align-items:center;gap:10px;padding:11px;background:#192a3e;border:1px solid #2b3d53;border-radius:12px}.srcinfo{flex:1;min-width:0}.srcinfo b{display:block;font-size:12px}.srcinfo small{display:block;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px;margin-top:4px}.delete{border:0;background:#4a2330;color:#ffc5cd;border-radius:8px;padding:7px 9px}.srcrow input{accent-color:var(--mint)}.hint{color:#9aacc0;font-size:11px;line-height:1.65}.secondary{background:transparent;border:1px solid #35495d;color:#bbccde;border-radius:10px;padding:10px 13px;font-size:12px}
+@media(min-width:640px){.items{grid-template-columns:repeat(2,1fr)}header{padding-left:max(24px,calc((100vw - 810px)/2));padding-right:max(24px,calc((100vw - 810px)/2))}.hero h1{font-size:34px}}
+</style></head>
+<body>
+<header>
+  <div class="topline"><div class="brand"><div class="logo">V</div><div><div class="eyebrow">Central regional</div><strong>Vale Notícias</strong><div class="sub">Vale do Aço • Minas Gerais</div></div></div><button class="iconbtn" id="manageBtn" aria-label="Gerenciar fontes">⚙</button></div>
+  <div class="hero"><h1>Seu Vale do Aço,<br><span>todas as notícias.</span></h1><p>As novidades da região reunidas em um só lugar.<br>Selecione a cidade e acompanhe os portais cadastrados.</p></div>
+  <div class="counts"><div class="count"><b id="newsCount">—</b><span>Notícias</span></div><div class="count"><b id="sourceCount">3</b><span>Fontes ativas</span></div><div class="count"><b id="cityCount">4</b><span>Municípios</span></div></div>
+</header>
+<main>
+  <div class="sectionrow"><b>Escolha um município</b><span class="pill">● Notícias online</span></div>
+  <div class="cities" id="cities"></div>
+  <div class="toolbar"><div class="search">⌕ <input type="search" id="search" placeholder="Pesquisar nas notícias..."></div><button class="refresh" id="refreshBtn" aria-label="Atualizar notícias">↻</button></div>
+  <div class="sectionrow"><b id="sectionTitle">Notícias da região</b><span class="pill" id="currentCity">Vale do Aço</span></div>
+  <div class="status" id="status">Conectando às fontes...</div>
+  <div class="items" id="articles"></div>
+  <div class="note">As chamadas e prévias são obtidas de feeds RSS e da pesquisa do Google Notícias. Nem toda publicação de um site aparece nessas fontes. Esta versão <strong>não produz resumos por IA generativa</strong>; consulte sempre a matéria original para confirmar detalhes e contexto.</div>
+</main>
+<div class="overlay" id="overlay"><div class="sheet">
+  <div class="sheet-head"><h2>Fontes de notícias</h2><button id="closeBtn" class="close">×</button></div>
+  <p class="desc">Cadastre sites ou feeds RSS. Para sites comuns, a busca usa o domínio cadastrado e o município selecionado. Fontes regionais valem para todas as cidades.</p>
+  <form id="addForm">
+    <div class="field"><label for="srcName">Nome da fonte</label><input id="srcName" placeholder="Ex.: Jornal da cidade" maxlength="45" required></div>
+    <div class="field"><label for="srcUrl">Link HTTPS do site ou feed RSS</label><input id="srcUrl" type="url" placeholder="https://site.com.br/" required></div>
+    <div class="field"><label for="srcCity">Município relacionado</label><select id="srcCity"></select></div>
+    <button class="primary" type="submit">+ Adicionar fonte</button>
+  </form>
+  <div class="sectionrow"><b>Fontes cadastradas</b><span class="pill" id="totalSources"></span></div>
+  <div class="srclist" id="srcList"></div>
+  <p class="hint">Links salvos neste aparelho. Não envie chaves de API ou links privados. Sites sem RSS dependem de resultados indexados no Google Notícias.</p>
+  <button class="secondary" id="resetBtn">Restaurar fontes iniciais</button>
+</div></div>
+<script>
+(function(){
+"use strict";
+var defaults=[
+ {name:"Diário do Aço",url:"https://www.diariodoaco.com.br/",city:"Vale do Aço",enabled:true},
+ {name:"Plox",url:"https://www.plox.com.br/vale-do-aco",city:"Vale do Aço",enabled:true},
+ {name:"Vale 24 Horas",url:"https://vale24horas.com.br/",city:"Vale do Aço",enabled:true}
+];
+var baseCities=["Ipatinga","Coronel Fabriciano","Timóteo","Santana do Paraíso"];
+function parse(key,def){try{var a=JSON.parse(localStorage.getItem(key));return Array.isArray(a)?a:def;}catch(e){return def;}}
+var sources=parse("vn_sources_v1",defaults),extraCities=parse("vn_cities_v1",[]);
+var city="Vale do Aço",items=[],errorList=[],busy=false,requestId=0,favs=parse("vn_fav_v1",[]);
+var $=function(id){return document.getElementById(id);};
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");}
+function cities(){return baseCities.concat(extraCities.filter(function(c){return baseCities.indexOf(c)<0;}));}
+function save(){localStorage.setItem("vn_sources_v1",JSON.stringify(sources));}
+function labelDate(v){var d=new Date(v);if(!v||isNaN(d.getTime()))return "Data não informada";return d.toLocaleDateString("pt-BR",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});}
+function renderCities(){
+ var html='<button class="city '+(city==="Vale do Aço"?"active":"")+'" data-city="Vale do Aço">Todo o Vale</button>';
+ cities().forEach(function(c){html+='<button class="city '+(city===c?"active":"")+'" data-city="'+esc(c)+'">'+esc(c)+'</button>';});
+ html+='<button class="city add" id="addCity" title="Adicionar município">＋</button>';
+ $("cities").innerHTML=html;
+ document.querySelectorAll("[data-city]").forEach(function(b){b.onclick=function(){city=b.getAttribute("data-city");renderCities();refresh();};});
+ $("addCity").onclick=function(){var n=prompt("Nome do município que deseja adicionar:");if(!n)return;n=n.trim().slice(0,45);if(!n)return;if(cities().some(function(x){return x.toLowerCase()===n.toLowerCase();})){alert("Município já cadastrado.");return;}extraCities.push(n);localStorage.setItem("vn_cities_v1",JSON.stringify(extraCities));city=n;renderCities();refresh();};
+ $("cityCount").textContent=cities().length;
+ var opts=['Vale do Aço'].concat(cities());
+ $("srcCity").innerHTML=opts.map(function(c){return '<option value="'+esc(c)+'">'+(c==='Vale do Aço'?'Regional (todas as cidades)':esc(c))+'</option>';}).join("");
+}
+function render(){
+ var term=$("search").value.trim().toLocaleLowerCase("pt-BR");
+ var shown=items.filter(function(x){return !term||(x.title+" "+x.preview+" "+x.source).toLocaleLowerCase("pt-BR").indexOf(term)>=0;});
+ $("newsCount").textContent=items.length;$("currentCity").textContent=city;
+ $("sectionTitle").textContent=city==="Vale do Aço"?"Notícias da região":"Notícias de "+city;
+ $("sourceCount").textContent=sources.filter(function(x){return x.enabled;}).length;
+ if(!shown.length){
+  var msg=busy?"Buscando publicações nos sites cadastrados…":term?"Nenhum resultado para esta pesquisa.":"Não foram encontradas notícias recentes neste filtro. Tente atualizar ou cadastrar outra fonte.";
+  $("articles").innerHTML='<div class="empty"><div class="sym">'+(busy?"⌛":"📰")+'</div><b>'+(busy?"Buscando notícias":"Sem notícias para mostrar")+'</b><p>'+esc(msg)+'</p></div>';return;
+ }
+ $("articles").innerHTML=shown.map(function(x){
+  var id=x.url;var fav=favs.indexOf(id)!==-1;
+  return '<article class="article"><div class="a-top"><span class="source">'+esc(x.source)+'</span><span class="date">'+esc(labelDate(x.date))+'</span></div>'+
+   '<h3>'+esc(x.title)+'</h3><p>'+esc(x.preview)+'</p>'+
+   '<div class="a-foot"><button class="read" data-open="'+esc(x.url)+'">Ler notícia completa ↗</button><button class="fav '+(fav?'on':'')+'" data-fav="'+esc(x.url)+'" title="Salvar notícia">'+(fav?'★':'☆')+'</button></div></article>';
+ }).join("");
+ document.querySelectorAll("[data-open]").forEach(function(b){b.onclick=function(){window.ValeNative.open(b.getAttribute("data-open"));};});
+ document.querySelectorAll("[data-fav]").forEach(function(b){b.onclick=function(){var u=b.getAttribute("data-fav"),i=favs.indexOf(u);if(i<0)favs.push(u);else favs.splice(i,1);localStorage.setItem("vn_fav_v1",JSON.stringify(favs));render();};});
+}
+function refresh(){
+ requestId++;items=[];busy=true;errorList=[];render();$("status").textContent="Consultando as fontes e organizando as notícias...";
+ if(window.ValeNative&&window.ValeNative.load){window.ValeNative.load(city,JSON.stringify(sources),requestId);}else{busy=false;$("status").textContent="O leitor de notícias funciona no aplicativo Android.";render();}
+}
+window.feedReady=function(token,data,errors){
+ if(token!==requestId)return;
+ busy=false;items=Array.isArray(data)?data:[];
+ items.sort(function(a,b){return (new Date(b.date).getTime()||0)-(new Date(a.date).getTime()||0);});
+ errorList=Array.isArray(errors)?errors:[];
+ $("status").innerHTML=items.length?"<strong>"+items.length+" chamadas encontradas</strong> · mais recentes primeiro":"Nenhuma chamada encontrada nas fontes selecionadas.";
+ if(errorList.length)$("status").textContent+=" Avisos: "+errorList.join("; ")+".";
+ render();
+};
+function renderSources(){
+ $("totalSources").textContent=sources.length+" fonte(s)";
+ $("srcList").innerHTML=sources.map(function(s,i){return '<div class="srcrow"><input type="checkbox" data-toggle="'+i+'" '+(s.enabled?'checked':'')+' aria-label="Ativar fonte"><div class="srcinfo"><b>'+esc(s.name)+'</b><small>'+esc(s.city)+' · '+esc(s.url)+'</small></div><button class="delete" data-remove="'+i+'">Excluir</button></div>';}).join("");
+ document.querySelectorAll("[data-toggle]").forEach(function(x){x.onchange=function(){sources[+x.getAttribute("data-toggle")].enabled=x.checked;save();render();};});
+ document.querySelectorAll("[data-remove]").forEach(function(x){x.onclick=function(){sources.splice(+x.getAttribute("data-remove"),1);save();renderSources();render();};});
+}
+$("manageBtn").onclick=function(){renderSources();$("srcCity").value=city;$("overlay").classList.add("show");};
+$("closeBtn").onclick=function(){$("overlay").classList.remove("show");refresh();};
+$("overlay").onclick=function(e){if(e.target===$("overlay")){$("overlay").classList.remove("show");refresh();}};
+$("addForm").onsubmit=function(e){
+ e.preventDefault();var name=$("srcName").value.trim(),url=$("srcUrl").value.trim(),c=$("srcCity").value;
+ try{var u=new URL(url);if(u.protocol!=="https:")throw Error("HTTPS");}
+ catch(err){alert("Informe um endereço HTTPS válido.");return;}
+ if(sources.some(function(x){return x.url===url&&x.city===c;})){alert("Esta fonte já está cadastrada para o município.");return;}
+ sources.push({name:name,url:url,city:c,enabled:true});save();$("srcName").value="";$("srcUrl").value="";renderSources();render();
+};
+$("resetBtn").onclick=function(){if(confirm("Restaurar as três fontes iniciais?")){sources=defaults.map(function(x){return Object.assign({},x);});save();renderSources();}};
+$("search").oninput=render;$("refreshBtn").onclick=refresh;
+renderCities();render();refresh();
+})();
+</script></body></html>
