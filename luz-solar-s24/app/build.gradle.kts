@@ -6,8 +6,8 @@ android {
         applicationId = "com.wes1999.luzsolars24"
         minSdk = 29
         targetSdk = 34
-        versionCode = 5
-        versionName = "1.4.0"
+        versionCode = 6
+        versionName = "1.4.1"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

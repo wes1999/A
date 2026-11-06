@@ -727,9 +727,12 @@ public class MainActivity extends Activity {
         double dawnDuration=p.dawn[3]-p.dawn[0];
         double duskDuration=p.dusk[0]-p.dusk[3];
         double dayDuration=p.dusk[3]-p.dawn[3];
+        // String.format %f exige Double; Math.round retorna Long.
+        // Usamos minutos inteiros para impedir IllegalFormatConversionException.
+        long totalMinutes=Math.round(dayDuration);
         sb.append(String.format(Locale.forLanguageTag("pt-BR"),
-            "\nLuz do dia: %.0f h %.0f min",
-            Math.floor(dayDuration/60),Math.round(dayDuration%60)));
+            "\nLuz do dia: %d h %02d min",
+            totalMinutes/60,totalMinutes%60));
         sb.append(String.format(Locale.forLanguageTag("pt-BR"),
             "\nCrepúsculos: manhã %.1f min • noite %.1f min",dawnDuration,duskDuration));
         if(adjusted) {
