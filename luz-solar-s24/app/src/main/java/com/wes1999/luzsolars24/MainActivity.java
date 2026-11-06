@@ -48,7 +48,7 @@ public class MainActivity extends Activity {
     private Button[] tabs = new Button[4];
     private LightSurface lightSurface;
     private boolean showingLight=false, screenHold=false, userLocation=false, expired=false, clock24h=true, solarAuto=false;
-    private int mode=0, manualK=2700, manualB=48, maxB=80, dawnStart=360, duskStart=1080, cycleClockStart=0, selectedDay, selectedMonth, selectedYear, accelerateHours=6, sessionChoice=5;
+    private int mode=0, manualK=2700, manualB=48, maxB=80, dawnStart=360, duskStart=1080, cycleClockStart=0, manualClockOffset=0, selectedDay, selectedMonth, selectedYear, accelerateHours=6, sessionChoice=5;
     private double lat=-19.36, lon=-42.52;
     private long accelerateStart=0, lightSessionEnds=0;
     private LocationManager locationManager;
@@ -77,10 +77,14 @@ public class MainActivity extends Activity {
         mode=sp.getInt("mode",0);
         dawnStart=sp.getInt("dawnStart",360);
         duskStart=sp.getInt("duskStart",1080);
-        cycleClockStart=sp.getInt("cycleClockStart",0);
+        Calendar startingDate=Calendar.getInstance();
+        int realMinute=startingDate.get(Calendar.HOUR_OF_DAY)*60+startingDate.get(Calendar.MINUTE);
+        // Migrar configurações anteriores: o horário salvo passa a ser a hora SIMULADA,
+        // não o instante em que um ciclo começava à meia-noite.
+        cycleClockStart=sp.getInt("cycleClockStart",realMinute);
+        manualClockOffset=sp.getInt("manualClockOffset",cycleClockStart-realMinute);
         clock24h=sp.getBoolean("clock24h",true);
         solarAuto=sp.getBoolean("solarAuto",false);
-        Calendar startingDate=Calendar.getInstance();
         selectedDay=sp.getInt("selectedDay",startingDate.get(Calendar.DAY_OF_MONTH));
         selectedMonth=sp.getInt("selectedMonth",startingDate.get(Calendar.MONTH)+1);
         selectedYear=sp.getInt("selectedYear",startingDate.get(Calendar.YEAR));
@@ -98,6 +102,7 @@ public class MainActivity extends Activity {
         getPreferences(MODE_PRIVATE).edit().putInt("manualK",manualK).putInt("manualB",manualB)
             .putInt("maxB",maxB).putInt("mode",mode).putInt("dawnStart",dawnStart)
             .putInt("duskStart",duskStart).putInt("cycleClockStart",cycleClockStart)
+            .putInt("manualClockOffset",manualClockOffset)
             .putBoolean("clock24h",clock24h).putBoolean("solarAuto",solarAuto)
             .putInt("selectedDay",selectedDay).putInt("selectedMonth",selectedMonth).putInt("selectedYear",selectedYear)
             .putInt("accHours",accelerateHours)
@@ -381,7 +386,7 @@ public class MainActivity extends Activity {
         modeArea.addView(resetCycle,new LinearLayout.LayoutParams(-1,dp(48)));
         resetCycle.setOnClickListener(v->new AlertDialog.Builder(this)
             .setTitle("Restaurar Ciclo 24h?")
-            .setMessage("A data voltará para hoje, o início será 00:00, o amanhecer às 06:00, o entardecer às 18:00, o modo será manual e o relógio voltará ao formato de 24 horas. As outras configurações serão mantidas.")
+            .setMessage("A data voltará para hoje, a hora simulada acompanhará o relógio do S24, o amanhecer será às 06:00, o entardecer às 18:00, o modo será manual e o formato será de 24 horas. As outras configurações serão mantidas.")
             .setNegativeButton("Cancelar",null)
             .setPositiveButton("Restaurar",(dialog,which)->{
                 resetCycleDefaults();save();renderControls();
@@ -398,9 +403,9 @@ public class MainActivity extends Activity {
     }
 
     private void buildManualSchedule() {
-        addText(modeArea,"HORÁRIO DE INÍCIO DO CICLO DE 24 HORAS",12,TEXT,true);
+        addText(modeArea,"HORÁRIO SIMULADO DO SOL",12,TEXT,true);
         addSpace(modeArea,6);
-        Button startAt=button("ESCOLHER HORÁRIO: "+clockHHmm(cycleClockStart),false);
+        Button startAt=button("ESCOLHER HORÁRIO SOLAR: "+clockHHmm(cycleClockStart),false);
         modeArea.addView(startAt,new LinearLayout.LayoutParams(-1,dp(48)));
         startAt.setOnClickListener(v->chooseCycleClockStart());
         addSpace(modeArea,8);
@@ -408,7 +413,7 @@ public class MainActivity extends Activity {
         modeArea.addView(useNow,new LinearLayout.LayoutParams(-1,dp(48)));
         useNow.setOnClickListener(v->syncSolarToPhoneNow());
         addSpace(modeArea,9);
-        addText(modeArea,"Escolher horário reinicia o ciclo virtual em 00:00 nesse momento do relógio. Usar o horário atual sincroniza com o Sol real e a data de hoje, sem zerar o relógio virtual. O cálculo usa a latitude configurada.",12,MUTED,false);
+        addText(modeArea,"Exemplo: se você escolher 13:00, a simulação ficará em 13:00 imediatamente, com luz do dia, mesmo que no S24 sejam 17:45. Depois, o relógio simulado continua avançando normalmente. O botão de horário atual volta ao Sol real.",12,MUTED,false);
         addSpace(modeArea,17);
 
         addText(modeArea,"Início do amanhecer astronômico (Sol a −18°)",12,TEXT,true);
@@ -486,7 +491,8 @@ public class MainActivity extends Activity {
         selectedDay=current.get(Calendar.DAY_OF_MONTH);
         selectedMonth=current.get(Calendar.MONTH)+1;
         selectedYear=current.get(Calendar.YEAR);
-        cycleClockStart=0;
+        cycleClockStart=clockNowMinutes();
+        manualClockOffset=0;
         clock24h=true;
         solarAuto=false;
         dawnStart=6*60;
@@ -543,17 +549,30 @@ public class MainActivity extends Activity {
         selectedMonth=current.get(Calendar.MONTH)+1;
         selectedYear=current.get(Calendar.YEAR);
         solarAuto=true;
-        cycleClockStart=0;
+        cycleClockStart=clockNowMinutes();
+        manualClockOffset=0;
         cachedPlan=null;
         planKey="";
         save();
         renderControls();
     }
 
+    private int clockNowMinutes() {
+        Calendar current=now();
+        return current.get(Calendar.HOUR_OF_DAY)*60+current.get(Calendar.MINUTE);
+    }
+
     private void chooseCycleClockStart() {
         new TimePickerDialog(this,(picker,hour,minute)->{
-            cycleClockStart=hour*60+minute;
-            save();renderControls();
+            int selectedTime=hour*60+minute;
+            // O valor escolhido representa a hora VIRTUAL agora.
+            // O deslocamento preserva o andamento do relógio simulado
+            // com os minutos reais, sem zerar para 00:00.
+            cycleClockStart=selectedTime;
+            manualClockOffset=selectedTime-clockNowMinutes();
+            solarAuto=false;
+            save();
+            renderControls();
         },cycleClockStart/60,cycleClockStart%60,clock24h).show();
     }
 
@@ -634,7 +653,7 @@ public class MainActivity extends Activity {
         if(mode!=3) {
             Calendar c=now();
             double local=c.get(Calendar.HOUR_OF_DAY)*60+c.get(Calendar.MINUTE)+c.get(Calendar.SECOND)/60.0;
-            if(mode==2) return solarAuto ? local : (local-cycleClockStart+1440.0)%1440.0;
+            if(mode==2) return solarAuto ? local : ((local+manualClockOffset)%1440.0+1440.0)%1440.0;
             return local;
         }
         double cycleMs=accelerateHours*3600000.0;
@@ -707,13 +726,13 @@ public class MainActivity extends Activity {
         boolean adjusted=mode==2 && !solarAuto;
         double dawnOffset=adjusted?dawnStart-p.dawn[0]:0;
         double duskOffset=adjusted?duskStart-p.dusk[3]:0;
-        double shift=adjusted?cycleClockStart:0;
+        double shift=0; // Exibir eventos em HORAS VIRTUAIS, não em horas do relógio do S24.
         StringBuilder sb=new StringBuilder();
         if(mode==2) {
             sb.append("Data: ").append(selectedDateText());
             if(solarAuto) sb.append("\nHorários astronômicos automáticos (relógio local).");
-            else sb.append(" | Início do ciclo: ").append(clockHHmm(cycleClockStart))
-                .append("\nHorários ajustados à programação manual.");
+            else sb.append("\nHora simulada agora: ").append(clockHHmm((int)virtualMinute()))
+                .append("\nHorários abaixo são do relógio solar simulado, não do S24.");
             sb.append('\n');
         }
         sb.append("\nAMANHECER\n");
@@ -740,7 +759,10 @@ public class MainActivity extends Activity {
         }
         double dawnDuration=p.dawn[3]-p.dawn[0];
         double duskDuration=p.dusk[0]-p.dusk[3];
-        double dayDuration=p.dusk[3]-p.dawn[3];
+        double manualSunset=duskStart<=dawnStart?duskStart+1440:duskStart;
+        double dayDuration=adjusted
+            ?Math.max(0,manualSunset-(dawnStart+dawnDuration))
+            :p.dusk[3]-p.dawn[3];
         // String.format %f exige Double; Math.round retorna Long.
         // Usamos minutos inteiros para impedir IllegalFormatConversionException.
         long totalMinutes=Math.round(dayDuration);
