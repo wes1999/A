@@ -75,26 +75,54 @@ public final class SunMath {
         return out;
     }
 
+    public static boolean validCustomSchedule(Plan p, int sunriseMinute, int sunsetMinute) {
+        if (!p.valid()) return false;
+        double dawnDuration = p.dawn[3] - p.dawn[0];
+        double duskDuration = p.dusk[0] - p.dusk[3];
+        // Day must be between the selected sunrise and sunset.
+        // Twilight may straddle midnight but adjacent periods may not overlap.
+        return sunriseMinute >= 0 && sunsetMinute < 1440
+            && sunriseMinute + 15 < sunsetMinute
+            && sunriseMinute - dawnDuration + 1440 >= sunsetMinute + duskDuration;
+    }
+
     public static double altitudeCustom(Calendar day, double virtualMinute, double lat, double lon,
-                                        Plan plan, int dawnStart, int duskStart) {
-        if (!plan.valid()) return altitudeAtMinute(day, virtualMinute, lat, lon);
-        double start = dawnStart;
-        double sunset = duskStart;
-        if (sunset <= start) sunset += 1440;
-        double t = virtualMinute;
-        if (t < start) t += 1440;
-        double naturalMorning = plan.dawn[3] - plan.dawn[0];
-        double naturalEvening = plan.dusk[0] - plan.dusk[3];
-        double sunrise = start + naturalMorning;
-        double endOfTwilight = sunset + naturalEvening;
-        if (sunrise >= sunset || endOfTwilight >= start + 1440 || t > endOfTwilight) return -23;
-        double mapped;
-        if (t < sunrise) mapped = plan.dawn[0] + (t - start);
-        else if (t < sunset) {
-            double fraction = (t - sunrise) / Math.max(1, sunset - sunrise);
-            mapped = plan.dawn[3] + fraction * (plan.dusk[3] - plan.dawn[3]);
-        } else mapped = plan.dusk[3] + (t - sunset);
-        return altitudeAtMinute(day, mapped, lat, lon);
+                                        Plan plan, int sunriseMinute, int sunsetMinute) {
+        if (!validCustomSchedule(plan,sunriseMinute,sunsetMinute)) return -23.0;
+        double t = ((virtualMinute % 1440) + 1440) % 1440;
+        double dawnLength=plan.dawn[3]-plan.dawn[0];
+        double duskLength=plan.dusk[0]-plan.dusk[3];
+        double dawnBegin=sunriseMinute-dawnLength;
+        double duskEnd=sunsetMinute+duskLength;
+
+        // Before the sunrise: map the real astronomical morning twilight.
+        // This branch also supports astronomical dawn beginning before midnight.
+        if(t < sunriseMinute) {
+            if(t < dawnBegin) {
+                if(duskEnd > 1440 && t < duskEnd-1440) {
+                    return altitudeAtMinute(day,plan.dusk[3]+(t+1440-sunsetMinute),lat,lon);
+                }
+                return -23.0;
+            }
+            return altitudeAtMinute(day,plan.dawn[3]+(t-sunriseMinute),lat,lon);
+        }
+
+        // Above the horizon: adapt the daylight duration while preserving
+        // the natural solar altitude progression (sunrise -> culmination -> sunset).
+        if(t < sunsetMinute) {
+            double progress=(t-sunriseMinute)/(sunsetMinute-sunriseMinute);
+            double naturalMinute=plan.dawn[3] + progress*(plan.dusk[3]-plan.dawn[3]);
+            return altitudeAtMinute(day,naturalMinute,lat,lon);
+        }
+
+        // After sunset: preserve the astronomical duration of each twilight.
+        if(t <= duskEnd) {
+            return altitudeAtMinute(day,plan.dusk[3]+(t-sunsetMinute),lat,lon);
+        }
+        if(dawnBegin < 0 && t >= dawnBegin+1440) {
+            return altitudeAtMinute(day,plan.dawn[3]+(t-(sunriseMinute+1440)),lat,lon);
+        }
+        return -23.0;
     }
 
     public static Light lightForAltitude(double altitude) {

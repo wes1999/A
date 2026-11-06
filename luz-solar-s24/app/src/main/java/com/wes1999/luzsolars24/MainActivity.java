@@ -47,7 +47,7 @@ public class MainActivity extends Activity {
     private View previewLight;
     private Button[] tabs = new Button[4];
     private LightSurface lightSurface;
-    private boolean showingLight=false, screenHold=false, userLocation=false, expired=false, clock24h=true, solarAuto=false;
+    private boolean showingLight=false, screenHold=false, userLocation=false, expired=false, clock24h=true, solarAuto=true, usePhoneClock=true;
     private int mode=0, manualK=2700, manualB=48, maxB=80, dawnStart=360, duskStart=1080, cycleClockStart=0, manualClockOffset=0, selectedDay, selectedMonth, selectedYear, accelerateHours=6, sessionChoice=5;
     private double lat=-19.36, lon=-42.52;
     private long accelerateStart=0, lightSessionEnds=0;
@@ -84,7 +84,8 @@ public class MainActivity extends Activity {
         cycleClockStart=sp.getInt("cycleClockStart",realMinute);
         manualClockOffset=sp.getInt("manualClockOffset",cycleClockStart-realMinute);
         clock24h=sp.getBoolean("clock24h",true);
-        solarAuto=sp.getBoolean("solarAuto",false);
+        solarAuto=sp.getBoolean("solarAuto",true);
+        usePhoneClock=sp.getBoolean("usePhoneClock",true);
         selectedDay=sp.getInt("selectedDay",startingDate.get(Calendar.DAY_OF_MONTH));
         selectedMonth=sp.getInt("selectedMonth",startingDate.get(Calendar.MONTH)+1);
         selectedYear=sp.getInt("selectedYear",startingDate.get(Calendar.YEAR));
@@ -104,6 +105,7 @@ public class MainActivity extends Activity {
             .putInt("duskStart",duskStart).putInt("cycleClockStart",cycleClockStart)
             .putInt("manualClockOffset",manualClockOffset)
             .putBoolean("clock24h",clock24h).putBoolean("solarAuto",solarAuto)
+            .putBoolean("usePhoneClock",usePhoneClock)
             .putInt("selectedDay",selectedDay).putInt("selectedMonth",selectedMonth).putInt("selectedYear",selectedYear)
             .putInt("accHours",accelerateHours)
             .putBoolean("screenHold",screenHold)
@@ -297,7 +299,7 @@ public class MainActivity extends Activity {
     private void buildCustom() {
         addText(modeArea,"CICLO ASTRONÔMICO PERSONALIZADO",15,ACCENT,true);
         addSpace(modeArea,7);
-        addText(modeArea,"Escolha o ciclo automático pela latitude e pela data, ou mantenha seus horários personalizados. O ciclo dura sempre 24 horas.",12,MUTED,false);
+        addText(modeArea,"Escolha a hora simulada e, separadamente, se o nascer e o pôr do Sol serão reais para a sua latitude ou definidos por você. O ciclo completo tem 24 horas.",12,MUTED,false);
         addSpace(modeArea,15);
 
         addText(modeArea,"DATA DO DIA SIMULADO (DD/MM/AAAA)",12,TEXT,true);
@@ -337,7 +339,31 @@ public class MainActivity extends Activity {
         addText(modeArea,"O formato escolhido é usado no seletor de horários e nas horas exibidas. O ciclo continua com 24 horas de duração.",12,MUTED,false);
         addSpace(modeArea,17);
 
-        addText(modeArea,"INÍCIO DO DIA E DA NOITE",12,ACCENT,true);
+        addText(modeArea,"HORA USADA NA SIMULAÇÃO",12,ACCENT,true);
+        addSpace(modeArea,8);
+        LinearLayout timeModes=row();
+        Button currentTime=button("HORA ATUAL DO S24",usePhoneClock);
+        Button chosenTime=button("ESCOLHER HORA",!usePhoneClock);
+        LinearLayout.LayoutParams timeHalf=new LinearLayout.LayoutParams(0,dp(49),1);
+        timeHalf.rightMargin=dp(7);
+        timeModes.addView(currentTime,timeHalf);
+        timeModes.addView(chosenTime,new LinearLayout.LayoutParams(0,dp(49),1));
+        modeArea.addView(timeModes);
+        currentTime.setOnClickListener(v->{
+            usePhoneClock=true;
+            manualClockOffset=0;
+            cycleClockStart=clockNowMinutes();
+            save();renderControls();
+        });
+        chosenTime.setOnClickListener(v->chooseCycleClockStart());
+        addSpace(modeArea,8);
+        TextView solarClock=text("Hora simulada agora: "+clockText(virtualMinute(),false),13,MUTED,false);
+        modeArea.addView(solarClock);
+        addSpace(modeArea,5);
+        addText(modeArea,"Escolher 13:00 posiciona o Sol às 13:00; usar a hora do S24 acompanha o relógio real. Esta opção não altera os horários do nascer e pôr do Sol.",12,MUTED,false);
+        addSpace(modeArea,17);
+
+        addText(modeArea,"HORÁRIOS DO NASCER E PÔR DO SOL",12,ACCENT,true);
         addSpace(modeArea,8);
         LinearLayout scheduleModes=row();
         Button autoSchedule=button("AUTOMÁTICO  ☀",solarAuto);
@@ -357,11 +383,7 @@ public class MainActivity extends Activity {
         if(solarAuto) {
             addText(modeArea,"CICLO ASTRONÔMICO REAL",14,TEXT,true);
             addSpace(modeArea,7);
-            Button syncNow=button("SINCRONIZAR COM DATA E HORA ATUAIS",true);
-            modeArea.addView(syncNow,new LinearLayout.LayoutParams(-1,dp(48)));
-            syncNow.setOnClickListener(v->syncSolarToPhoneNow());
-            addSpace(modeArea,9);
-            addText(modeArea,"O nascer e o pôr do Sol serão calculados automaticamente para a data, latitude e longitude escolhidas. O período diurno vai do nascer ao pôr do Sol; os crepúsculos começam antes do amanhecer e continuam após o entardecer.",12,MUTED,false);
+            addText(modeArea,"Nascer do Sol, pôr do Sol e crepúsculos serão calculados automaticamente pela latitude, longitude e data. Você ainda pode escolher uma hora simulada acima sem alterar a duração real do dia.",12,MUTED,false);
             addSpace(modeArea,12);
             Button gps=button("USAR LOCALIZAÇÃO DO S24",true);
             modeArea.addView(gps,new LinearLayout.LayoutParams(-1,dp(48)));
@@ -386,7 +408,7 @@ public class MainActivity extends Activity {
         modeArea.addView(resetCycle,new LinearLayout.LayoutParams(-1,dp(48)));
         resetCycle.setOnClickListener(v->new AlertDialog.Builder(this)
             .setTitle("Restaurar Ciclo 24h?")
-            .setMessage("A data voltará para hoje, a hora simulada acompanhará o relógio do S24, o amanhecer será às 06:00, o entardecer às 18:00, o modo será manual e o formato será de 24 horas. As outras configurações serão mantidas.")
+            .setMessage("A data voltará para hoje, a hora simulada acompanhará o S24, os horários de nascer e pôr do Sol serão automáticos pela latitude e o relógio será de 24 horas. As outras configurações serão mantidas.")
             .setNegativeButton("Cancelar",null)
             .setPositiveButton("Restaurar",(dialog,which)->{
                 resetCycleDefaults();save();renderControls();
@@ -403,36 +425,26 @@ public class MainActivity extends Activity {
     }
 
     private void buildManualSchedule() {
-        addText(modeArea,"HORÁRIO SIMULADO DO SOL",12,TEXT,true);
+        addText(modeArea,"NASCER DO SOL — INÍCIO DO DIA",12,TEXT,true);
         addSpace(modeArea,6);
-        Button startAt=button("ESCOLHER HORÁRIO SOLAR: "+clockHHmm(cycleClockStart),false);
-        modeArea.addView(startAt,new LinearLayout.LayoutParams(-1,dp(48)));
-        startAt.setOnClickListener(v->chooseCycleClockStart());
-        addSpace(modeArea,8);
-        Button useNow=button("USAR O HORÁRIO ATUAL DO S24",true);
-        modeArea.addView(useNow,new LinearLayout.LayoutParams(-1,dp(48)));
-        useNow.setOnClickListener(v->syncSolarToPhoneNow());
-        addSpace(modeArea,9);
-        addText(modeArea,"Exemplo: se você escolher 13:00, a simulação ficará em 13:00 imediatamente, com luz do dia, mesmo que no S24 sejam 17:45. Depois, o relógio simulado continua avançando normalmente. O botão de horário atual volta ao Sol real.",12,MUTED,false);
-        addSpace(modeArea,17);
-
-        addText(modeArea,"Início do amanhecer astronômico (Sol a −18°)",12,TEXT,true);
+        Button sunrise=button(clockHHmm(dawnStart),false);
+        modeArea.addView(sunrise,new LinearLayout.LayoutParams(-1,dp(48)));
+        sunrise.setOnClickListener(v->chooseTime(dawnStart,true));
+        addSpace(modeArea,13);
+        addText(modeArea,"PÔR DO SOL — INÍCIO DO ENTARDECER",12,TEXT,true);
         addSpace(modeArea,6);
-        Button dawn=button(clockHHmm(dawnStart),false);
-        modeArea.addView(dawn,new LinearLayout.LayoutParams(-1,dp(45)));
-        dawn.setOnClickListener(v->chooseTime(dawnStart,true));
-        addSpace(modeArea,14);
-        addText(modeArea,"Início do entardecer civil (pôr do Sol)",12,TEXT,true);
-        addSpace(modeArea,6);
-        Button dusk=button(clockHHmm(duskStart),false);
-        modeArea.addView(dusk,new LinearLayout.LayoutParams(-1,dp(45)));
-        dusk.setOnClickListener(v->chooseTime(duskStart,false));
-        addSpace(modeArea,12);
-        eventText=text("",12,MUTED,false);modeArea.addView(eventText);
-        addSpace(modeArea,12);
-        Button editLoc=button("EDITAR LOCALIZAÇÃO PARA OS CÁLCULOS",false);
-        modeArea.addView(editLoc);editLoc.setOnClickListener(v->showCoordinatesDialog());
-        addSpace(modeArea,19);
+        Button sunset=button(clockHHmm(duskStart),false);
+        modeArea.addView(sunset,new LinearLayout.LayoutParams(-1,dp(48)));
+        sunset.setOnClickListener(v->chooseTime(duskStart,false));
+        addSpace(modeArea,10);
+        addText(modeArea,"Exemplo: nascer às 06:00 e pôr às 18:00 = 12 horas de dia. O crepúsculo começa ANTES das 06:00 e termina DEPOIS das 18:00, com durações astronômicas calculadas para a data e latitude.",12,MUTED,false);
+        addSpace(modeArea,11);
+        eventText=text("",12,MUTED,false);
+        modeArea.addView(eventText);
+        addSpace(modeArea,11);
+        Button editLoc=button("EDITAR LATITUDE E LONGITUDE",false);
+        modeArea.addView(editLoc);
+        editLoc.setOnClickListener(v->showCoordinatesDialog());
     }
 
     private void buildAccelerated() {
@@ -493,8 +505,9 @@ public class MainActivity extends Activity {
         selectedYear=current.get(Calendar.YEAR);
         cycleClockStart=clockNowMinutes();
         manualClockOffset=0;
+        usePhoneClock=true;
         clock24h=true;
-        solarAuto=false;
+        solarAuto=true;
         dawnStart=6*60;
         duskStart=18*60;
         cachedPlan=null;
@@ -541,22 +554,6 @@ public class MainActivity extends Activity {
         dialog.show();
     }
 
-    private void syncSolarToPhoneNow() {
-        // Não reiniciar às 00:00 quando o usuário escolhe "hora atual".
-        // A sincronização usa o relógio natural e a data corrente, tal como "Sol real".
-        Calendar current=now();
-        selectedDay=current.get(Calendar.DAY_OF_MONTH);
-        selectedMonth=current.get(Calendar.MONTH)+1;
-        selectedYear=current.get(Calendar.YEAR);
-        solarAuto=true;
-        cycleClockStart=clockNowMinutes();
-        manualClockOffset=0;
-        cachedPlan=null;
-        planKey="";
-        save();
-        renderControls();
-    }
-
     private int clockNowMinutes() {
         Calendar current=now();
         return current.get(Calendar.HOUR_OF_DAY)*60+current.get(Calendar.MINUTE);
@@ -570,7 +567,7 @@ public class MainActivity extends Activity {
             // com os minutos reais, sem zerar para 00:00.
             cycleClockStart=selectedTime;
             manualClockOffset=selectedTime-clockNowMinutes();
-            solarAuto=false;
+            usePhoneClock=false;
             save();
             renderControls();
         },cycleClockStart/60,cycleClockStart%60,clock24h).show();
@@ -653,7 +650,7 @@ public class MainActivity extends Activity {
         if(mode!=3) {
             Calendar c=now();
             double local=c.get(Calendar.HOUR_OF_DAY)*60+c.get(Calendar.MINUTE)+c.get(Calendar.SECOND)/60.0;
-            if(mode==2) return solarAuto ? local : ((local+manualClockOffset)%1440.0+1440.0)%1440.0;
+            if(mode==2) return usePhoneClock ? local : ((local+manualClockOffset)%1440.0+1440.0)%1440.0;
             return local;
         }
         double cycleMs=accelerateHours*3600000.0;
@@ -724,15 +721,16 @@ public class MainActivity extends Activity {
         SunMath.Plan p=getPlan(day);
         if(!p.valid())return "Os crepúsculos completos não ocorrem nesta data/latitude. A iluminação ainda seguirá a altitude solar calculada.";
         boolean adjusted=mode==2 && !solarAuto;
-        double dawnOffset=adjusted?dawnStart-p.dawn[0]:0;
+        double dawnOffset=adjusted?dawnStart-p.dawn[3]:0;
         double duskOffset=adjusted?duskStart-p.dusk[3]:0;
         double shift=0; // Exibir eventos em HORAS VIRTUAIS, não em horas do relógio do S24.
         StringBuilder sb=new StringBuilder();
         if(mode==2) {
             sb.append("Data: ").append(selectedDateText());
-            if(solarAuto) sb.append("\nHorários astronômicos automáticos (relógio local).");
-            else sb.append("\nHora simulada agora: ").append(clockHHmm((int)virtualMinute()))
-                .append("\nHorários abaixo são do relógio solar simulado, não do S24.");
+            sb.append("\nHora simulada agora: ").append(clockText(virtualMinute(),false));
+            if(solarAuto) sb.append("\nNascer e pôr do Sol automáticos por latitude e data.");
+            else sb.append("\nNascer e pôr do Sol definidos manualmente.");
+            sb.append("\nHorários abaixo correspondem à escala solar selecionada.");
             sb.append('\n');
         }
         sb.append("\nAMANHECER\n");
@@ -759,9 +757,8 @@ public class MainActivity extends Activity {
         }
         double dawnDuration=p.dawn[3]-p.dawn[0];
         double duskDuration=p.dusk[0]-p.dusk[3];
-        double manualSunset=duskStart<=dawnStart?duskStart+1440:duskStart;
         double dayDuration=adjusted
-            ?Math.max(0,manualSunset-(dawnStart+dawnDuration))
+            ?Math.max(0,duskStart-dawnStart)
             :p.dusk[3]-p.dawn[3];
         // String.format %f exige Double; Math.round retorna Long.
         // Usamos minutos inteiros para impedir IllegalFormatConversionException.
@@ -771,13 +768,8 @@ public class MainActivity extends Activity {
             totalMinutes/60,totalMinutes%60));
         sb.append(String.format(Locale.forLanguageTag("pt-BR"),
             "\nCrepúsculos: manhã %.1f min • noite %.1f min",dawnDuration,duskDuration));
-        if(adjusted) {
-            double customSunrise=dawnStart+dawnDuration;
-            double adjustedSunset=duskStart<=dawnStart?duskStart+1440:duskStart;
-            if(customSunrise>=adjustedSunset ||
-                adjustedSunset+duskDuration>=dawnStart+1440) {
-                sb.append("\n⚠ Os horários escolhidos não deixam espaço para todas as fases. Altere amanhecer ou entardecer.");
-            }
+        if(adjusted && !SunMath.validCustomSchedule(p,dawnStart,duskStart)) {
+            sb.append("\n⚠ Os horários escolhidos não permitem um ciclo válido. Altere o nascer ou o pôr do Sol.");
         }
         return sb.toString();
     }
@@ -785,9 +777,9 @@ public class MainActivity extends Activity {
     private void startLight() {
         if(mode==2 && !solarAuto) {
             SunMath.Plan p=getPlan(referenceDay());
-            double ss=duskStart<=dawnStart?duskStart+1440:duskStart;
-            if(p.valid() && (dawnStart+p.dawn[3]-p.dawn[0]>=ss || ss+p.dusk[0]-p.dusk[3]>=dawnStart+1440)) {
-                new AlertDialog.Builder(this).setMessage("Os horários personalizados se sobrepõem. Ajuste-os antes de iniciar.").setPositiveButton("OK",null).show();return;
+            if(!SunMath.validCustomSchedule(p,dawnStart,duskStart)) {
+                new AlertDialog.Builder(this).setMessage("Os horários de nascer e pôr do Sol não permitem um ciclo válido. Ajuste-os antes de iniciar.").setPositiveButton("OK",null).show();
+                return;
             }
         }
         expired=false;showingLight=true;
