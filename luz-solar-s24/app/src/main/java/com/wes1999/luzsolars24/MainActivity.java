@@ -47,7 +47,7 @@ public class MainActivity extends Activity {
     private View previewLight;
     private Button[] tabs = new Button[4];
     private LightSurface lightSurface;
-    private boolean showingLight=false, screenHold=false, userLocation=false, expired=false;
+    private boolean showingLight=false, screenHold=false, userLocation=false, expired=false, clock24h=true;
     private int mode=0, manualK=2700, manualB=48, maxB=80, dawnStart=360, duskStart=1080, cycleClockStart=0, selectedDay, selectedMonth, selectedYear, accelerateHours=6, sessionChoice=5;
     private double lat=-19.36, lon=-42.52;
     private long accelerateStart=0, lightSessionEnds=0;
@@ -78,6 +78,7 @@ public class MainActivity extends Activity {
         dawnStart=sp.getInt("dawnStart",360);
         duskStart=sp.getInt("duskStart",1080);
         cycleClockStart=sp.getInt("cycleClockStart",0);
+        clock24h=sp.getBoolean("clock24h",true);
         Calendar startingDate=Calendar.getInstance();
         selectedDay=sp.getInt("selectedDay",startingDate.get(Calendar.DAY_OF_MONTH));
         selectedMonth=sp.getInt("selectedMonth",startingDate.get(Calendar.MONTH)+1);
@@ -96,6 +97,7 @@ public class MainActivity extends Activity {
         getPreferences(MODE_PRIVATE).edit().putInt("manualK",manualK).putInt("manualB",manualB)
             .putInt("maxB",maxB).putInt("mode",mode).putInt("dawnStart",dawnStart)
             .putInt("duskStart",duskStart).putInt("cycleClockStart",cycleClockStart)
+            .putBoolean("clock24h",clock24h)
             .putInt("selectedDay",selectedDay).putInt("selectedMonth",selectedMonth).putInt("selectedYear",selectedYear)
             .putInt("accHours",accelerateHours)
             .putBoolean("screenHold",screenHold)
@@ -309,6 +311,26 @@ public class MainActivity extends Activity {
         });
         addSpace(modeArea,17);
 
+        addText(modeArea,"FORMATO DO RELÓGIO",12,TEXT,true);
+        addSpace(modeArea,6);
+        LinearLayout clockFormats=row();
+        Button clock24=button("24 horas  •  18:30",clock24h);
+        Button clock12=button("12 horas  •  06:30 PM",!clock24h);
+        LinearLayout.LayoutParams formatLeft=new LinearLayout.LayoutParams(0,dp(48),1);
+        formatLeft.rightMargin=dp(7);
+        clockFormats.addView(clock24,formatLeft);
+        clockFormats.addView(clock12,new LinearLayout.LayoutParams(0,dp(48),1));
+        modeArea.addView(clockFormats);
+        clock24.setOnClickListener(v->{
+            if(!clock24h){clock24h=true;save();renderControls();}
+        });
+        clock12.setOnClickListener(v->{
+            if(clock24h){clock24h=false;save();renderControls();}
+        });
+        addSpace(modeArea,8);
+        addText(modeArea,"O formato escolhido é usado no seletor de horários e nas horas exibidas. O ciclo continua com 24 horas de duração.",12,MUTED,false);
+        addSpace(modeArea,17);
+
         addText(modeArea,"HORÁRIO DE INÍCIO DO CICLO DE 24 HORAS",12,TEXT,true);
         addSpace(modeArea,6);
         Button startAt=button("ESCOLHER HORÁRIO: "+clockHHmm(cycleClockStart),false);
@@ -329,13 +351,13 @@ public class MainActivity extends Activity {
 
         addText(modeArea,"Início do amanhecer astronômico (Sol a −18°)",12,TEXT,true);
         addSpace(modeArea,6);
-        Button dawn=button(SunMath.clock(dawnStart),false);
+        Button dawn=button(clockHHmm(dawnStart),false);
         modeArea.addView(dawn,new LinearLayout.LayoutParams(-1,dp(45)));
         dawn.setOnClickListener(v->chooseTime(dawnStart,true));
         addSpace(modeArea,14);
         addText(modeArea,"Início do entardecer civil (pôr do Sol)",12,TEXT,true);
         addSpace(modeArea,6);
-        Button dusk=button(SunMath.clock(duskStart),false);
+        Button dusk=button(clockHHmm(duskStart),false);
         modeArea.addView(dusk,new LinearLayout.LayoutParams(-1,dp(45)));
         dusk.setOnClickListener(v->chooseTime(duskStart,false));
         addSpace(modeArea,12);
@@ -350,7 +372,7 @@ public class MainActivity extends Activity {
         modeArea.addView(resetCycle,new LinearLayout.LayoutParams(-1,dp(48)));
         resetCycle.setOnClickListener(v->new AlertDialog.Builder(this)
             .setTitle("Restaurar Ciclo 24h?")
-            .setMessage("A data voltará para hoje, o início será 00:00, o amanhecer às 06:00 e o entardecer às 18:00. As outras configurações serão mantidas.")
+            .setMessage("A data voltará para hoje, o início será 00:00, o amanhecer às 06:00, o entardecer às 18:00 e o relógio voltará ao formato de 24 horas. As outras configurações serão mantidas.")
             .setNegativeButton("Cancelar",null)
             .setPositiveButton("Restaurar",(dialog,which)->{
                 resetCycleDefaults();save();renderControls();
@@ -390,11 +412,31 @@ public class MainActivity extends Activity {
         new TimePickerDialog(this,(v,h,m)->{
             if(morning)dawnStart=h*60+m;else duskStart=h*60+m;
             save();renderControls();
-        },start/60,start%60,true).show();
+        },start/60,start%60,clock24h).show();
     }
 
     private String clockHHmm(int minute) {
-        return String.format(Locale.forLanguageTag("pt-BR"),"%02d:%02d",minute/60,minute%60);
+        return clockText(minute,false);
+    }
+
+    private String clockText(double minute, boolean withSeconds) {
+        if(Double.isNaN(minute) || minute < 0) return "--:--";
+        int seconds=((int)Math.round(minute*60.0)%86400+86400)%86400;
+        int hour=seconds/3600;
+        int min=(seconds/60)%60;
+        int sec=seconds%60;
+        Locale pt=Locale.forLanguageTag("pt-BR");
+        if(clock24h) {
+            return withSeconds
+                ?String.format(pt,"%02d:%02d:%02d",hour,min,sec)
+                :String.format(pt,"%02d:%02d",hour,min);
+        }
+        int displayHour=hour%12;
+        if(displayHour==0)displayHour=12;
+        String meridiem=hour<12?"AM":"PM";
+        return withSeconds
+            ?String.format(pt,"%02d:%02d:%02d %s",displayHour,min,sec,meridiem)
+            :String.format(pt,"%02d:%02d %s",displayHour,min,meridiem);
     }
 
     private void resetCycleDefaults() {
@@ -403,6 +445,7 @@ public class MainActivity extends Activity {
         selectedMonth=current.get(Calendar.MONTH)+1;
         selectedYear=current.get(Calendar.YEAR);
         cycleClockStart=0;
+        clock24h=true;
         dawnStart=6*60;
         duskStart=18*60;
         cachedPlan=null;
@@ -453,7 +496,7 @@ public class MainActivity extends Activity {
         new TimePickerDialog(this,(picker,hour,minute)->{
             cycleClockStart=hour*60+minute;
             save();renderControls();
-        },cycleClockStart/60,cycleClockStart%60,true).show();
+        },cycleClockStart/60,cycleClockStart%60,clock24h).show();
     }
 
     private Calendar referenceDay() {
@@ -565,7 +608,7 @@ public class MainActivity extends Activity {
             }
             if(headerStatus!=null){
                 String state = mode==0?"Controle manual":
-                    (mode==1?"Hora local: ":"Hora do ciclo: ")+SunMath.clock(minute);
+                    (mode==1?"Hora local: ":"Hora do ciclo: ")+clockText(minute,true);
                 if(mode==2) state+=" | Data: "+selectedDateText();
                 String alt=mode==0?"":String.format(Locale.forLanguageTag("pt-BR")," • Altitude solar %.1f°",lastAltitude);
                 headerStatus.setText(state+alt);
@@ -604,17 +647,17 @@ public class MainActivity extends Activity {
         double duskOffset=mode==2?duskStart-p.dusk[3]:0;
         StringBuilder sb=new StringBuilder();
         if(mode==2)sb.append("Data: ").append(selectedDateText())
-            .append(" | Início do ciclo: ").append(SunMath.clock(cycleClockStart))
+            .append(" | Início do ciclo: ").append(clockText(cycleClockStart,false))
             .append("\nHorários reais do relógio (já ajustados para o começo do ciclo)\n");
         sb.append("\nMANHÃ\n");
         for(int i=0;i<4;i++) {
             String name=i==3?"Nascer do Sol":("Início "+SunMath.PHASES[i].toLowerCase(Locale.ROOT));
-            sb.append("  ").append(SunMath.clock(p.dawn[i]+dawnOffset+(mode==2?cycleClockStart:0))).append("   ").append(name).append('\n');
+            sb.append("  ").append(clockText(p.dawn[i]+dawnOffset+(mode==2?cycleClockStart:0),true)).append("   ").append(name).append('\n');
         }
         sb.append("\nTARDE / NOITE\n");
         for(int i=3;i>=0;i--) {
             String name=i==3?"Pôr do Sol":("Início "+SunMath.PHASES[i].toLowerCase(Locale.ROOT));
-            sb.append("  ").append(SunMath.clock(p.dusk[i]+duskOffset+(mode==2?cycleClockStart:0))).append("   ").append(name).append('\n');
+            sb.append("  ").append(clockText(p.dusk[i]+duskOffset+(mode==2?cycleClockStart:0),true)).append("   ").append(name).append('\n');
         }
         double dawnDuration=p.dawn[3]-p.dawn[0];
         double duskDuration=p.dusk[0]-p.dusk[3];
@@ -701,11 +744,14 @@ public class MainActivity extends Activity {
                 c.drawRect((float)x,top,(float)Math.min(w,x+segment+1),top+barHeight,paint);
             }
             paint.setColor(MUTED);paint.setTextSize(dp(10));
-            c.drawText("00h",0,h-dp(5),paint);
-            c.drawText("06h",w*.25f-dp(12),h-dp(5),paint);
-            c.drawText("12h",w*.50f-dp(12),h-dp(5),paint);
-            c.drawText("18h",w*.75f-dp(12),h-dp(5),paint);
-            c.drawText("24h",w-dp(21),h-dp(5),paint);
+            String[] timeMarks=clock24h
+                ?new String[]{"00h","06h","12h","18h","24h"}
+                :new String[]{"12AM","6AM","12PM","6PM","12AM"};
+            c.drawText(timeMarks[0],0,h-dp(5),paint);
+            c.drawText(timeMarks[1],w*.25f-dp(11),h-dp(5),paint);
+            c.drawText(timeMarks[2],w*.50f-dp(12),h-dp(5),paint);
+            c.drawText(timeMarks[3],w*.75f-dp(11),h-dp(5),paint);
+            c.drawText(timeMarks[4],w-dp(26),h-dp(5),paint);
             double current=virtualMinute();
             paint.setColor(ACCENT);paint.setStrokeWidth(dp(2));
             float px=(float)(w*current/1440.0);
