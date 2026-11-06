@@ -352,6 +352,10 @@ public class MainActivity extends Activity {
         if(solarAuto) {
             addText(modeArea,"CICLO ASTRONÔMICO REAL",14,TEXT,true);
             addSpace(modeArea,7);
+            Button syncNow=button("SINCRONIZAR COM DATA E HORA ATUAIS",true);
+            modeArea.addView(syncNow,new LinearLayout.LayoutParams(-1,dp(48)));
+            syncNow.setOnClickListener(v->syncSolarToPhoneNow());
+            addSpace(modeArea,9);
             addText(modeArea,"O nascer e o pôr do Sol serão calculados automaticamente para a data, latitude e longitude escolhidas. O período diurno vai do nascer ao pôr do Sol; os crepúsculos começam antes do amanhecer e continuam após o entardecer.",12,MUTED,false);
             addSpace(modeArea,12);
             Button gps=button("USAR LOCALIZAÇÃO DO S24",true);
@@ -402,14 +406,9 @@ public class MainActivity extends Activity {
         addSpace(modeArea,8);
         Button useNow=button("USAR O HORÁRIO ATUAL DO S24",true);
         modeArea.addView(useNow,new LinearLayout.LayoutParams(-1,dp(48)));
-        useNow.setOnClickListener(v->{
-            Calendar current=Calendar.getInstance();
-            cycleClockStart=current.get(Calendar.HOUR_OF_DAY)*60+current.get(Calendar.MINUTE);
-            save();
-            renderControls();
-        });
+        useNow.setOnClickListener(v->syncSolarToPhoneNow());
         addSpace(modeArea,9);
-        addText(modeArea,"No horário escolhido, o relógio do ciclo começa às 00h00 e completa 24 horas reais. Se usar a hora atual, o ciclo começa agora.",12,MUTED,false);
+        addText(modeArea,"Escolher horário reinicia o ciclo virtual em 00:00 nesse momento do relógio. Usar o horário atual sincroniza com o Sol real e a data de hoje, sem zerar o relógio virtual. O cálculo usa a latitude configurada.",12,MUTED,false);
         addSpace(modeArea,17);
 
         addText(modeArea,"Início do amanhecer astronômico (Sol a −18°)",12,TEXT,true);
@@ -534,6 +533,21 @@ public class MainActivity extends Activity {
         dialog.getDatePicker().setMinDate(min.getTimeInMillis());
         dialog.getDatePicker().setMaxDate(max.getTimeInMillis());
         dialog.show();
+    }
+
+    private void syncSolarToPhoneNow() {
+        // Não reiniciar às 00:00 quando o usuário escolhe "hora atual".
+        // A sincronização usa o relógio natural e a data corrente, tal como "Sol real".
+        Calendar current=now();
+        selectedDay=current.get(Calendar.DAY_OF_MONTH);
+        selectedMonth=current.get(Calendar.MONTH)+1;
+        selectedYear=current.get(Calendar.YEAR);
+        solarAuto=true;
+        cycleClockStart=0;
+        cachedPlan=null;
+        planKey="";
+        save();
+        renderControls();
     }
 
     private void chooseCycleClockStart() {
