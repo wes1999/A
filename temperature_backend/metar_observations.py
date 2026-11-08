@@ -30,7 +30,7 @@ def _geo_from_apk(apk_path):
     with zipfile.ZipFile(apk_path) as apk:
         geo = []
         for filename in ("overview.geojson", "df.geojson"):
-            candidates=[p for p in apk.namelist() if p.endswith("/assets/mapa/"+filename)]
+            candidates=[p for p in apk.namelist() if p.endswith("assets/mapa/"+filename)]
             if len(candidates)!=1:
                 raise RuntimeError("Base geográfica ausente: "+filename)
             geo.extend(json.loads(apk.read(candidates[0]))["features"])
