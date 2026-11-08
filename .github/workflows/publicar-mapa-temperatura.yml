@@ -23,13 +23,13 @@ jobs:
           gh run download 42530553829 -R "${GITHUB_REPOSITORY}" -n MapaTemperaturaBrasil-APK -D dist
           test -s dist/app-debug.apk
           mv dist/app-debug.apk dist/MapaTemperaturasBrasil-V3-ZoomFixo.apk
-          file dist/MapaTemperaturasBrasil-V2.apk
-          sha256sum dist/MapaTemperaturasBrasil-V2.apk
+          file dist/MapaTemperaturasBrasil-V3-ZoomFixo.apk
+          sha256sum dist/MapaTemperaturasBrasil-V3-ZoomFixo.apk
       - name: Publicar download direto
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create mapa-temperatura-v3 dist/MapaTemperaturasBrasil-V2.apk \
+          gh release create mapa-temperatura-v3 dist/MapaTemperaturasBrasil-V3-ZoomFixo.apk \
             -R "${GITHUB_REPOSITORY}" \
             --target "${GITHUB_SHA}" \
             --title "Mapa de Temperaturas do Brasil V3 - Cores Fixas" \
