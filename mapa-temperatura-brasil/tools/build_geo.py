@@ -103,14 +103,17 @@ def main():
         download(IBGE_BASE+"BR_UF_2025.zip",ufzip)
         ufs=extract(ufzip,tmp/"ufs")
         borders=[]
+        df_mask=None
         for d,g in load_shapes(ufs):
             g=fix(g)
             if g is None:continue
             nm=get(d,"SIGLA_UF","UF","NM_UF")
+            if nm=="DF": df_mask=g
             borders.append(obj(g.simplify(.006,preserve_topology=True),{"uf":nm}))
         save(OUT/"uf_outlines.geojson",borders)
-    build_df()
-def build_df():
+    if df_mask is None: raise RuntimeError("Polígono IBGE 2025 do DF ausente")
+    build_df(df_mask)
+def build_df(df_mask):
     # Priorizar explicitamente a malha alinhada pelo usuário quando ela for
     # adicionada à pasta inputs do projeto, sem alterar seus limites internos.
     user_zip=ROOT/"inputs"/"df_alinhado.zip"
@@ -138,6 +141,8 @@ def build_df():
         for i,f in enumerate(data["features"]):
             d=f.get("properties",{})
             g=fix(shape(f["geometry"]))
+            if g is None:continue
+            g=fix(g.intersection(df_mask))
             if g is None:continue
             nm=get(d,"ra_nome","RA_NOME","name","nome","ra")
             if not nm:raise RuntimeError("Nome RA ausente: "+str(d)[:200])
