@@ -96,9 +96,19 @@ function showDetail(p){
  const t=valueAt(p);
  $("temperature").textContent=t==null?"Sem dados":t.toFixed(1).replace(".",",")+" °C";
  $("temperature").style.color=toColor(t);
- $("source").textContent=t==null?
-   "Nenhuma atualização nacional disponível. Conecte-se e toque em Atualizar tudo.":
-   "Temperatura estimada pelo modelo NOAA GFS (grade de 0,25°, a 2 m), no ponto representativo deste território. Modelo válido em "+timeBR(lastSnapshot&&lastSnapshot.valid_time_utc)+". Esta não é uma medição por estação local.";
+ const observed=lastSnapshot&&lastSnapshot.observed&&lastSnapshot.observed[String(p.id)];
+ if(t==null){
+  $("source").textContent="Nenhuma temperatura disponível para este território.";
+ }else if(observed){
+  $("source").textContent="OBSERVAÇÃO REAL • Estação meteorológica aeroportuária "+
+    observed.station+" localizada neste território. Temperatura medida às "+
+    timeBR(observed.observed_at_utc)+
+    ". É uma leitura pontual da estação e não representa obrigatoriamente toda a área.";
+ }else{
+  $("source").textContent="ESTIMATIVA METEOROLÓGICA • Modelo NOAA GFS, resolução de aproximadamente 25 km, no ponto representativo do território. "+
+    "Modelo válido em "+timeBR(lastSnapshot&&lastSnapshot.valid_time_utc)+
+    ". Não existe medição local integrada para este território.";
+ }
 }
 $("closeDetail").onclick=()=>{$("detail").hidden=true;selected=null;};
 function boundsIntersect(a,b){
@@ -170,8 +180,11 @@ function applyNational(snapshot,fromCache=false){
  refreshStyles();
  if(selected)showDetail(selected);
  const valid=timeBR(snapshot.valid_time_utc),updated=timeBR(snapshot.updated_at_utc);
+ const actual=Number(snapshot.observed_count)||0;
  setStatus((fromCache?"Dados salvos • ":"Mapa nacional sincronizado • ")+
-  "5.569 municípios + 37 RAs + Noronha • modelo válido "+valid+
+  "5.569 municípios + 37 RAs + Noronha • "+
+  actual+" com observação de estação aeroportuária; "+(ids.length-actual)+
+  " estimados pelo GFS • modelo "+valid+
   (fromCache?"":" • publicado "+updated));
  if(!fromCache){
   try{localStorage.setItem(CACHE_KEY,JSON.stringify(snapshot));}catch(e){}
@@ -192,6 +205,11 @@ async function fetchNational(showMessage=true){
   const fresh=await response.json();
   if(lastSnapshot&&new Date(fresh.updated_at_utc)<new Date(lastSnapshot.updated_at_utc))
    throw Error("servidor retornou versão mais antiga; cores anteriores preservadas");
+  if(lastSnapshot&&fresh.updated_at_utc===lastSnapshot.updated_at_utc){
+   if(showMessage)setStatus("Conferido agora: ainda não há nova medição publicada. Último conjunto: "+
+     timeBR(lastSnapshot.updated_at_utc)+". As cores não foram alteradas.");
+   return;
+  }
   applyNational(fresh);
  }catch(err){
   setStatus("Não foi possível sincronizar: "+err.message+
@@ -224,7 +242,7 @@ async function loadData(){
    }catch(_){}
   }
   await fetchNational(!restored);
-  setInterval(()=>fetchNational(false),60*60*1000);
+  setInterval(()=>fetchNational(false),15*60*1000);
  }catch(err){setStatus("Erro ao carregar malha territorial: "+err.message);}
 }
 let moveTimer;
