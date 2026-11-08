@@ -6,8 +6,8 @@ android {
         applicationId = "br.com.mapatemperaturabrasil"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "4.0 - Brasil completo"
+        versionCode = 5
+        versionName = "5.0 - Fronteiras detalhadas"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
