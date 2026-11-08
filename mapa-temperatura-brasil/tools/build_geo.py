@@ -43,7 +43,17 @@ def load_shapes(shp):
         except Exception as e:
             print("Registro descartado:",repr(e),flush=True)
 def obj(geom,props):
-    return {"type":"Feature","properties":props,"geometry":mapping(geom)}
+    # Coordenadas 5 casas decimais (precisão métrica). Reduz tamanho do APK
+    # sem trocar os polígonos por versões geométricas de baixa resolução.
+    def compact(v):
+        if isinstance(v,(tuple,list)):
+            return [compact(x) for x in v]
+        if isinstance(v,float):
+            return round(v,5)
+        return v
+    g=mapping(geom)
+    g["coordinates"]=compact(g["coordinates"])
+    return {"type":"Feature","properties":props,"geometry":g}
 def save(path,features):
     path.parent.mkdir(parents=True,exist_ok=True)
     path.write_text(json.dumps({"type":"FeatureCollection","features":features},ensure_ascii=False,separators=(",",":")),encoding="utf-8")
@@ -87,8 +97,8 @@ def main():
             g=fix(g)
             if g is None:continue
             p=geo_props(g,cd,nm,uf)
-            overview.append(obj(g.simplify(.018,preserve_topology=True),p))
-            by_uf[uf].append(obj(g.simplify(.0015,preserve_topology=True),p))
+            overview.append(obj(g.simplify(.00035,preserve_topology=True),p))
+            by_uf[uf].append(obj(g.simplify(.00006,preserve_topology=True),p))
             counts[uf]+=1
             bb=g.bounds
             if uf not in bounds:bounds[uf]=[bb[1],bb[0],bb[3],bb[2]]
@@ -109,7 +119,7 @@ def main():
             if g is None:continue
             nm=get(d,"SIGLA_UF","UF","NM_UF")
             if nm=="DF": df_mask=g
-            borders.append(obj(g.simplify(.006,preserve_topology=True),{"uf":nm}))
+            borders.append(obj(g.simplify(.00015,preserve_topology=True),{"uf":nm}))
         save(OUT/"uf_outlines.geojson",borders)
     if df_mask is None: raise RuntimeError("Polígono IBGE 2025 do DF ausente")
     build_df(df_mask)
@@ -130,7 +140,7 @@ def build_df(df_mask):
                 if not nm:raise RuntimeError("Malha DF não contém nomes para todas as RAs.")
                 cd=get(d,"ra_codigo","CODIGO","CD_RA")
                 p=geo_props(g,"ra_"+(cd or str(i+1)),nm,"DF","ra")
-                features.append(obj(g.simplify(.00015,preserve_topology=True),p))
+                features.append(obj(g.simplify(.00006,preserve_topology=True),p))
     else:
         print("ATENÇÃO: DF alinhado ausente. Usando provisoriamente IDE-DF.",flush=True)
         url="https://www.geoservicos.ide.df.gov.br/arcgis/rest/services/Publico/LIMITES/FeatureServer/1/query"
