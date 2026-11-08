@@ -1,0 +1,19 @@
+<!DOCTYPE html><html lang="pt-BR"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Mapa de Temperaturas do Brasil</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head><body>
+<header><div class="brand"><span>🌡️</span><div><strong>Temperaturas do Brasil</strong><small>Municípios e regiões administrativas</small></div></div>
+<button id="refresh" title="Atualizar">⟳</button></header>
+<div class="searchbar"><input id="search" type="search" placeholder="Buscar município ou região do DF…" autocomplete="off" aria-label="Buscar cidade"><button id="go" title="Pesquisar">⌕</button></div>
+<div id="results" class="results" hidden></div>
+<div id="map"></div>
+<div class="actions"><button id="all">Brasil</button><button id="df">DF</button><button id="loc">Atualizar área</button></div>
+<div id="status">Preparando mapa…</div>
+<div class="legend"><div class="gradient"></div><div class="labels"><span>≤ 0 °C</span><span>10 °C</span><span>20 °C</span><span>30 °C</span><span>≥ 40 °C</span></div></div>
+<div id="detail" class="detail" hidden><button id="closeDetail" class="close">×</button><small id="type"></small><h2 id="name"></h2><div id="temperature"></div><p id="source"></p></div>
+<div id="credit">Temperaturas: Open-Meteo (CC BY 4.0) • Limites: IBGE 2025 / DF</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
+</body></html>

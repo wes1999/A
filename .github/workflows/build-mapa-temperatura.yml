@@ -1,0 +1,38 @@
+name: Compilar Mapa Temperaturas Brasil
+on:
+  push:
+    branches: [mapa-temperatura-brasil]
+    paths:
+      - 'mapa-temperatura-brasil/**'
+      - '.github/workflows/build-mapa-temperatura.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Preparar dependências geográficas
+        run: pip install --no-cache-dir shapely==2.1.2 pyshp==2.3.1 requests==2.32.3 pyproj==3.7.1
+      - name: Processar base oficial IBGE e polígonos do DF
+        run: python mapa-temperatura-brasil/tools/build_geo.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Compilar APK Android
+        run: cd mapa-temperatura-brasil && gradle --no-daemon assembleDebug --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MapaTemperaturaBrasil-APK
+          path: mapa-temperatura-brasil/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
