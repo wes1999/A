@@ -1,0 +1,37 @@
+name: Publicar APK de Temperaturas para Download Direto
+on:
+  push:
+    branches: [mapa-temperatura-brasil]
+    paths:
+      - '.github/workflows/publicar-mapa-temperatura.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Baixar APK da compilacao validada
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist
+          gh run download 42526159084 -R "${GITHUB_REPOSITORY}" -n MapaTemperaturaBrasil-APK -D dist
+          test -s dist/app-debug.apk
+          mv dist/app-debug.apk dist/MapaTemperaturasBrasil-V2.apk
+          file dist/MapaTemperaturasBrasil-V2.apk
+          sha256sum dist/MapaTemperaturasBrasil-V2.apk
+      - name: Publicar download direto
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create mapa-temperatura-v2 dist/MapaTemperaturasBrasil-V2.apk \
+            -R "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "Mapa de Temperaturas do Brasil V2 - Android" \
+            --notes "APK Android de teste com mapa municipal do Brasil, temperaturas online e divisões do DF. Ainda requer testes no aparelho e ajustes finais nas divisões do DF." \
+            --latest=false
