@@ -1,4 +1,4 @@
-name: Publicar APK V5 com fronteiras detalhadas
+name: Publicar APK V6 com temperatura METAR observada
 on:
   push:
     branches: [mapa-temperatura-brasil]
@@ -20,18 +20,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p dist
-          gh run download 42535327062 -R "${GITHUB_REPOSITORY}" -n MapaTemperaturaBrasil-APK -D dist
+          gh run download 42536952202 -R "${GITHUB_REPOSITORY}" -n MapaTemperaturaBrasil-APK -D dist
           test -s dist/app-debug.apk
-          mv dist/app-debug.apk dist/MapaTemperaturasBrasil-V5-Fronteiras-Detalhadas.apk
-          file dist/MapaTemperaturasBrasil-V5-Fronteiras-Detalhadas.apk
-          sha256sum dist/MapaTemperaturasBrasil-V5-Fronteiras-Detalhadas.apk
+          mv dist/app-debug.apk dist/MapaTemperaturasBrasil-V6-Observacoes-Reais.apk
+          file dist/MapaTemperaturasBrasil-V6-Observacoes-Reais.apk
+          sha256sum dist/MapaTemperaturasBrasil-V6-Observacoes-Reais.apk
       - name: Publicar download direto
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create mapa-temperatura-v5 dist/MapaTemperaturasBrasil-V5-Fronteiras-Detalhadas.apk \
+          gh release create mapa-temperatura-v6 dist/MapaTemperaturasBrasil-V6-Observacoes-Reais.apk \
             -R "${GITHUB_REPOSITORY}" \
             --target "${GITHUB_SHA}" \
-            --title "Mapa de Temperaturas do Brasil V5 - Fronteiras detalhadas" \
-            --notes "APK Android V5: malha IBGE 2025 muito mais detalhada em zoom nacional e local, contornos menos simplificados e sem sobreposição de camadas. Mantém temperaturas GFS e 5.569 municípios + 37 regiões administrativas do DF. Ainda não testado em Galaxy S24, e o DF usa malha provisória." \
+            --title "Mapa de Temperaturas do Brasil V6 - Observações reais quando disponíveis" \
+            --notes "APK Android V6: 5.569 municípios, 37 regiões administrativas do DF e Fernando de Noronha. Observações de estações aeroportuárias METAR reais quando existentes no território e recentes; o restante das temperaturas continua sendo estimativa GFS (25 km). Fontes claramente identificadas ao tocar no município. Atualização nacional aproximadamente de hora em hora. Não coleta dados da Weather.com; o serviço requer API autorizada. Ainda precisa ser testado no Galaxy S24." \
             --latest=false
