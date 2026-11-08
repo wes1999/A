@@ -1,4 +1,4 @@
-name: Publicar APK de Temperaturas para Download Direto
+name: Publicar APK V3 com Cores Fixas
 on:
   push:
     branches: [mapa-temperatura-brasil]
@@ -20,18 +20,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p dist
-          gh run download 42526159084 -R "${GITHUB_REPOSITORY}" -n MapaTemperaturaBrasil-APK -D dist
+          gh run download 42530553829 -R "${GITHUB_REPOSITORY}" -n MapaTemperaturaBrasil-APK -D dist
           test -s dist/app-debug.apk
-          mv dist/app-debug.apk dist/MapaTemperaturasBrasil-V2.apk
+          mv dist/app-debug.apk dist/MapaTemperaturasBrasil-V3-ZoomFixo.apk
           file dist/MapaTemperaturasBrasil-V2.apk
           sha256sum dist/MapaTemperaturasBrasil-V2.apk
       - name: Publicar download direto
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create mapa-temperatura-v2 dist/MapaTemperaturasBrasil-V2.apk \
+          gh release create mapa-temperatura-v3 dist/MapaTemperaturasBrasil-V2.apk \
             -R "${GITHUB_REPOSITORY}" \
             --target "${GITHUB_SHA}" \
-            --title "Mapa de Temperaturas do Brasil V2 - Android" \
-            --notes "APK Android de teste com mapa municipal do Brasil, temperaturas online e divisões do DF. Ainda requer testes no aparelho e ajustes finais nas divisões do DF." \
+            --title "Mapa de Temperaturas do Brasil V3 - Cores Fixas" \
+            --notes "APK Android V3: cores constantes em qualquer zoom, atualização meteorológica independente do zoom, melhorias nas consultas nacionais e regiões administrativas do DF. Ainda requer testes no aparelho e ajustes finais nos limites originais do DF." \
             --latest=false
