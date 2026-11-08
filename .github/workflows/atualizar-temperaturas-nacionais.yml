@@ -32,7 +32,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Instalar decodificador meteorologico
-        run: python -m pip install --no-cache-dir numpy requests eccodes
+        run: python -m pip install --no-cache-dir numpy requests eccodes shapely==2.1.2
       - name: Recuperar cadastro de TODOS os territorios do APK
         env:
           GH_TOKEN: ${{ github.token }}
@@ -62,7 +62,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "Nenhuma alteração de dados"
           else
-            git commit -m "Atualizar 5.569 municípios, 37 RAs e Noronha (GFS)"
+            git commit -m "Atualizar 5.569 municípios, 37 RAs e Noronha (GFS + METAR)"
             git push origin HEAD:refs/heads/dados-temperaturas
           fi
 # Verificação de integração GRIB corrigida
