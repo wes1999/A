@@ -1,7 +1,7 @@
 name: Compilar TermoMapa Brasil
 on:
   push:
-    branches: [mapa-temperatura-brasil]
+    branches: [termomapa-s24-android]
     paths:
       - 'termomapa/**'
       - '.github/workflows/build-termomapa.yml'
@@ -33,6 +33,8 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+      - name: Instalar plataformas Android
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'

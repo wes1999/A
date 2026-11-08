@@ -41,7 +41,7 @@ class MainActivity : ComponentActivity() {
                 override fun onShowFileChooser(
                     view: WebView?,
                     filePathCallback: ValueCallback<Array<android.net.Uri>>?,
-                    fileChooserParams: FileChooserParams?
+                    fileChooserParams: WebChromeClient.FileChooserParams?
                 ): Boolean {
                     fileCallback?.onReceiveValue(null)
                     fileCallback = filePathCallback
@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
             }
-            addContentView(v, v.layoutParams)
+            setContentView(v)
             v.loadUrl("https://appassets.androidplatform.net/assets/index.html")
         }
     }
