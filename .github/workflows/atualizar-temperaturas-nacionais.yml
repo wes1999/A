@@ -52,6 +52,7 @@ jobs:
       - name: Publicar fotografia nacional unica
         run: |
           git fetch origin dados-temperaturas
+          rm -f data/temperaturas.json data/pontos.json
           git checkout -B dados-temperaturas origin/dados-temperaturas
           mkdir -p data
           cp /tmp/temperaturas-nacionais.json data/temperaturas.json
