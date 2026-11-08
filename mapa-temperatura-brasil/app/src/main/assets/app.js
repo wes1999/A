@@ -17,7 +17,7 @@ function toColor(t){
  if(t==null||!Number.isFinite(t))return "#d6e0e7";
  for(let i=1;i<colors.length;i++){
   if(t<=colors[i][0]){
-   const a=colors[i-1],b=colors[i],f=Math.max(0,Math.min(1,(t-a[0])/(b[0]-a[0]))));
+   const a=colors[i-1],b=colors[i],f=Math.max(0,Math.min(1,(t-a[0])/(b[0]-a[0])));
    const x=hexToRgb(a[1]),y=hexToRgb(b[1]);
    return "#"+x.map((v,j)=>Math.round(v+(y[j]-v)*f).toString(16).padStart(2,"0")).join("");
   }
@@ -37,7 +37,7 @@ function style(f){
  return {
   renderer,fill:true,fillColor:toColor(temperatures.get(id)),
   fillOpacity:isDF&&dfLayer?0:1,color:"#fff",
-  weight:map.getZoom()>8?.7:.32,opacity:.9,
+  weight:map.getZoom()>8 ? .7 : .32,opacity:.9,
   interactive:!isDF
  };
 }
