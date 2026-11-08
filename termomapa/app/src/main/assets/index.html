@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>TermoMapa Brasil</title>
+<link rel="stylesheet" href="vendor/leaflet.css">
+<style>
+:root{color-scheme:light;--navy:#091b30;--blue:#0e3155;--text:#16293c;--muted:#50667a}
+*{box-sizing:border-box}html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Roboto,Arial,sans-serif}
+body{overflow:hidden;background:#e5edf3;color:var(--text)}
+#map{position:absolute;inset:0;background:#e7f3fb;z-index:0}
+.leaflet-container{background:#e7f3fb;font-family:inherit}
+.top{position:absolute;top:0;left:0;right:0;z-index:1000;padding:calc(9px + env(safe-area-inset-top,0px)) 12px 10px;background:linear-gradient(180deg,#091b30fa,#0d2948f5);color:white;box-shadow:0 2px 18px #0003}
+.brand{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.brand strong{font-size:18px;letter-spacing:.2px}
+.brand small{font-size:11px;display:block;color:#acccdf;margin-top:1px}
+.cta{border:0;border-radius:10px;padding:9px 11px;background:#244d73;color:white;font-weight:700;font-size:12px}
+.search{display:flex;gap:8px;margin-top:10px}
+.search input{min-width:0;flex:1;border-radius:11px;background:#fff;color:#152c40;border:0;padding:11px 12px;font-size:13px;outline:none}
+#searchBtn{padding-inline:14px;background:#2979c7}
+#status{font-size:11px;color:#b4d0e4;margin-top:8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.legend{position:absolute;z-index:900;bottom:calc(11px + env(safe-area-inset-bottom,0px));left:10px;right:10px;padding:11px 12px;border-radius:15px;background:#fffc;box-shadow:0 3px 15px #0b284127;backdrop-filter:blur(13px)}
+.legend-title{display:flex;justify-content:space-between;font-size:12px;font-weight:750;color:#193750;margin-bottom:8px}
+.legend-title span:last-child{font-size:10px;font-weight:500;color:#627688}
+.bar{height:13px;border-radius:7px;background:linear-gradient(to right,#6729a1 0%,#2234b5 12%,#36bbec 25%,#20bb86 39%,#e4d82b 54%,#f49023 70%,#e12d2e 86%,#90142a 100%)}
+.ticks{display:flex;justify-content:space-between;font-size:10px;color:#365068;font-weight:650;margin-top:5px}
+.tools{position:absolute;right:10px;top:150px;z-index:950;display:flex;flex-direction:column;gap:7px}
+.tool{width:44px;height:43px;background:#fffefa;border:1px solid #d5e1e7;box-shadow:0 1px 10px #0002;border-radius:12px;color:#1a3d5e;font-weight:800;font-size:19px}
+#panel{display:none;position:absolute;z-index:1001;right:10px;top:198px;width:min(310px,calc(100vw - 20px));max-height:55vh;overflow-y:auto;background:#fff;border-radius:16px;box-shadow:0 10px 36px #102f4a4a;padding:16px}
+#panel.visible{display:block}
+#panel h3{margin:0 0 10px;font-size:17px}
+#panel p{font-size:12px;line-height:1.45;color:#516b80}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0;font-size:13px}
+.row select{border:1px solid #ccd7e0;border-radius:9px;padding:7px;background:#f6f9fc;color:#193247}
+.block{display:block;width:100%;padding:12px;border:0;border-radius:10px;color:#fff;background:#145b95;font-size:13px;font-weight:700;text-align:center;margin:9px 0;cursor:pointer}
+.block.gray{background:#e8eff6;color:#194366}
+#raFile{display:none}
+#help{position:absolute;z-index:700;top:143px;left:10px;max-width:245px;padding:7px 9px;border-radius:10px;background:#fffde2e8;color:#476079;font-size:11px}
+.leaflet-popup-content-wrapper{border-radius:16px;box-shadow:0 4px 25px #1233}
+.leaflet-popup-content{min-width:185px;margin:14px 16px}
+.place-title{font-size:16px;font-weight:800;color:#0c3554;line-height:1.15}
+.place-uf{font-size:12px;color:#738496;margin-top:5px}
+.place-temp{font-size:35px;font-weight:850;color:#d54b26;margin-top:8px}
+.place-note{font-size:11px;color:#5a7185;margin-top:2px;max-width:250px}
+@media(max-height:600px){#help{display:none}.tools{top:120px}.legend{padding:7px 10px}}
+</style>
+</head>
+<body>
+<div id="map" role="application" aria-label="Mapa interativo das temperaturas do Brasil"></div>
+<header class="top">
+ <div class="brand"><div><strong>🌡 TermoMapa Brasil</strong><small>Municípios • Regiões administrativas do DF</small></div><button id="menuBtn" class="cta">⚙ Opções</button></div>
+ <div class="search"><input id="search" list="places" placeholder="Buscar município ou região administrativa" autocomplete="off"><datalist id="places"></datalist><button id="searchBtn" class="cta">Buscar</button></div>
+ <div id="status" aria-live="polite">Abrindo malha IBGE e preparando temperaturas...</div>
+</header>
+<div id="help">Toque no território para ver o nome e a temperatura. Amplie para obter dados mais detalhados.</div>
+<div class="tools">
+ <button class="tool" id="zoomPlus" aria-label="Aproximar">+</button>
+ <button class="tool" id="zoomMinus" aria-label="Afastar">−</button>
+ <button class="tool" id="home" aria-label="Mostrar Brasil">⌂</button>
+ <button class="tool" id="df" aria-label="Mostrar Distrito Federal">DF</button>
+ <button class="tool" id="refresh" aria-label="Atualizar temperaturas">↻</button>
+</div>
+<aside id="panel">
+ <h3>Configurações do mapa</h3>
+ <div class="row"><span>Atualização automática</span><select id="period"><option value="15">15 min</option><option selected value="30">30 min</option><option value="60">60 min</option></select></div>
+ <div class="row"><label for="tiles">Mostrar ruas ao fundo</label><input type="checkbox" id="tiles"></div>
+ <div class="row"><label for="borders">Mostrar divisas estaduais</label><input type="checkbox" id="borders" checked></div>
+ <div class="row"><label for="precise">Consultar municípios visíveis</label><input type="checkbox" id="precise" checked></div>
+ <button id="importDF" class="block">Importar meu ZIP SHP do DF</button>
+ <input type="file" id="raFile" accept=".zip,application/zip">
+ <button id="resetDF" class="block gray">Usar divisão pública do DF</button>
+ <button id="closePanel" class="block gray">Fechar opções</button>
+ <p>Ao importar seu arquivo <b>regioes_administrativas_DF_alinhadas_SHP.zip</b>, suas divisões substituem as divisões públicas. O arquivo fica guardado neste celular.</p>
+ <p><b>Dados:</b> malhas IBGE 2025, regiões administrativas IDE/DF e Open-Meteo (CC BY 4.0). Valores são estimativas meteorológicas, não sensores em todos os territórios. No mapa geral, as cores são interpoladas; ao ampliar ou tocar, o aplicativo consulta temperaturas específicas.</p>
+ <p>© OpenStreetMap contributors, quando a camada de ruas estiver ativa. Uso não comercial.</p>
+</aside>
+<div class="legend"><div class="legend-title"><span>Temperatura do ar • °C</span><span id="mode">Aguardando dados</span></div>
+<div class="bar"></div><div class="ticks"><span>≤ −5°</span><span>0°</span><span>10°</span><span>20°</span><span>30°</span><span>40°+</span></div></div>
+<script src="vendor/leaflet.js"></script><script src="vendor/shp.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const status = message => $('status').textContent=message;
+const map=L.map('map',{preferCanvas:true,zoomControl:false,worldCopyJump:false,minZoom:3,maxZoom:15,zoomSnap:0.3}).setView([-15.5,-52.4],4);
+const baseBounds=L.latLngBounds([[-34.3,-74.6],[5.7,-34.5]]);
+const dfBounds=L.latLngBounds([[-16.09,-48.28],[-15.48,-47.26]]);
+let all=[],ras=[],munLayer=null,raLayer=null,ufLayer=null,tiles=null,gridRefs=[],lastGrid=0, updating=false, importedDF=false;
+const cache=new Map(), mapLayers=new Map(), pending=new Map(), WEATHER_TTL=30*60*1000;
+const cold=[[-5,[103,41,161]],[0,[35,52,181]],[8,[54,187,236]],[16,[32,187,134]],[23,[228,216,43]],[30,[244,144,35]],[37,[225,45,46]],[44,[144,20,42]]];
+function shade(t){if(t===undefined||t===null||!Number.isFinite(t))return '#c4d5dc';for(let i=1;i<cold.length;i++){if(t<=cold[i][0]){const a=cold[i-1],b=cold[i],v=Math.min(1,Math.max(0,(t-a[0])/(b[0]-a[0])));return '#'+a[1].map((x,j)=>Math.round(x+(b[1][j]-x)*v).toString(16).padStart(2,'0')).join('')}}return '#90142a'}
+function key(f){return (f.properties.uf||'')+'|'+(f.properties.id||f.properties.nome)}
+function geoPoint(f){const p=f.properties.pt;return p?L.latLng(p[1],p[0]):L.geoJSON(f).getBounds().getCenter()}
+function geomCenter(f){let g=f.geometry;let a=g&&g.coordinates;while(a&&Array.isArray(a[0]))a=a[0];if(a&&a.length===2&&typeof a[0]==='number')return [a[0],a[1]];return [-47.9,-15.8]}
+function nameOf(p){return p.nome||p.ra_nome||p.RA_NOME||p.ra||p.RA||p.NOME||p.NM_RA||p.name||p.NAME||'Região Administrativa'}
+function normalizeRA(input){const items=Array.isArray(input)?input.flatMap(x=>(x.features||[])):(input.features||[]);
+ return items.filter(f=>f.geometry).map((f,i)=>{let props=f.properties||{};let center;
+ try{const ll=L.geoJSON(f).getBounds().getCenter();center=[+ll.lng.toFixed(5),+ll.lat.toFixed(5)]}catch(e){center=geomCenter(f)}
+ return {type:'Feature',geometry:f.geometry,properties:{id:'RA'+String(props.ra_codigo||props.RA_CODIGO||i+1),uf:'DF',nome:nameOf(props),pt:center}}});
+}
+function styleMun(f){const z=map.getZoom();return {fillColor:shade(f.properties.temp),fillOpacity:.93,color:'#fff',opacity:z>=7?.95:.70,weight:z>=9?.95:z>=6?.55:.24}}
+function styleRA(f){const z=map.getZoom();return {fillColor:shade(f.properties.temp),fillOpacity:.94,color:'#fff',opacity:1,weight:z>=10?1.05:.55}}
+function showPopup(feature,layer){const p=feature.properties;const t=p.temp;let txt='<div class="place-title">'+esc(p.nome)+'</div><div class="place-uf">'+esc(p.uf==='DF'?'Região administrativa do Distrito Federal':'Município • '+p.uf)+'</div>'+
+ '<div class="place-temp" style="color:'+shade(t)+'">'+(Number.isFinite(t)?t.toFixed(1).replace('.',',')+' °C':'Consultando…')+'</div>'+
+ '<div class="place-note">'+(p.precise?'Temperatura estimada para este território':'Cor regional interpolada; consultando temperatura local…')+'</div>';
+ layer.bindPopup(txt,{autoPan:true,closeButton:true,maxWidth:280}).openPopup();
+}
+function esc(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function onFeature(f,layer){const k=key(f);mapLayers.set(k,layer);layer.on('click',async()=>{
+ showPopup(f,layer);await fetchExact([f]);showPopup(f,layer);
+ });}
+function loadRA(features, own){if(raLayer)map.removeLayer(raLayer);for(const f of ras)mapLayers.delete(key(f));ras=features;importedDF=own;
+ raLayer=L.geoJSON({type:'FeatureCollection',features:ras},{style:styleRA,onEachFeature:onFeature}).addTo(map);
+ if(ufLayer)ufLayer.bringToFront();
+ if(ras.length)status(ras.length+' regiões administrativas do DF • '+(own?'sua malha alinhada':'divisão pública'));
+}
+function updateLayers(){if(munLayer)munLayer.setStyle(styleMun);if(raLayer)raLayer.setStyle(styleRA);if(ufLayer)ufLayer.setStyle(()=>({fill:false,color:'#1f5ea3',opacity:.9,weight:map.getZoom()>=7?1.55:.87}));}
+function selectSamples(){const seen=new Set(),refs=[];for(const f of all.concat(ras)){const p=f.properties.pt;if(!p)continue;let x=Math.floor(p[0]/1.7),y=Math.floor(p[1]/1.7),k=x+','+y;if(!seen.has(k)){seen.add(k);refs.push(f)}}return refs}
+function dist2(a,b){const la=(a[1]+b[1])/2*Math.PI/180,dlo=(a[0]-b[0])*Math.cos(la),dla=a[1]-b[1];return dlo*dlo+dla*dla}
+function interpolate(){if(!gridRefs.length)return;const refs=gridRefs.filter(f=>Number.isFinite(f.properties.temp));
+ if(!refs.length)return;
+ for(const f of all.concat(ras)){if(f.properties.precise)continue;const p=f.properties.pt;if(!p)continue;
+ let best=Infinity,t=null;for(const s of refs){const d=dist2(p,s.properties.pt);if(d<best){best=d;t=s.properties.temp}}f.properties.temp=t;}
+ updateLayers();$('mode').textContent='Mapa geral: interpolado';
+}
+function pack(list,n){const out=[];for(let i=0;i<list.length;i+=n)out.push(list.slice(i,i+n));return out}
+async function fetchBatch(features){
+ if(!features.length)return;
+ const lats=features.map(f=>f.properties.pt[1]),lons=features.map(f=>f.properties.pt[0]);
+ const url='https://api.open-meteo.com/v1/forecast?latitude='+lats.join(',')+'&longitude='+lons.join(',')+'&current=temperature_2m&timezone=auto';
+ const abort=new AbortController();const timer=setTimeout(()=>abort.abort(),16000);
+ try{const res=await fetch(url,{signal:abort.signal,cache:'no-store'});if(!res.ok)throw Error('API '+res.status);
+ const data=await res.json(),items=Array.isArray(data)?data:[data],now=Date.now();
+ items.forEach((item,i)=>{if(!features[i])return;const temp=Number(item.current&&item.current.temperature_2m);
+ if(Number.isFinite(temp)){features[i].properties.temp=temp;features[i].properties.precise=true;cache.set(key(features[i]),{temp,time:now})}});
+ }finally{clearTimeout(timer)}
+}
+async function runBatches(features,limit=2){const batches=pack(features,55);let ix=0,fail=0;await Promise.all(Array.from({length:Math.min(limit,batches.length)},async()=>{while(ix<batches.length){let b=batches[ix++];try{await fetchBatch(b)}catch(e){fail++;console.warn('Falha meteorológica',e.message)}}}));return fail}
+function fresh(f){const c=cache.get(key(f));if(c&&Date.now()-c.time<WEATHER_TTL){f.properties.temp=c.temp;f.properties.precise=true;return true}return false}
+async function fetchExact(features){const needed=features.filter(f=>f.properties.pt&&!fresh(f));if(needed.length){await runBatches(needed,2)}updateLayers();}
+async function refreshGrid(force=false){if(updating)return;if(!force&&Date.now()-lastGrid<60*60*1000)return;
+ updating=true;status('Consultando pontos meteorológicos do Brasil…');gridRefs=selectSamples();
+ const failures=await runBatches(gridRefs,3);
+ // O campo "precise" fica reservado para consultas por território, não para interpolação.
+ for(const f of gridRefs){if(f.properties.precise)f.properties.precise=false}
+ const refCount=gridRefs.filter(f=>Number.isFinite(f.properties.temp)).length;
+ if(refCount){interpolate();lastGrid=Date.now();status('Mapa atualizado por '+refCount+' pontos regionais • aproxime para detalhe')}
+ else status('Não foi possível atualizar. Confira a internet.');
+ if(failures)console.warn('Lotes sem resposta',failures);
+ updating=false;await refreshVisible();
+}
+let viewportTimer=null;
+function scheduleVisible(){clearTimeout(viewportTimer);viewportTimer=setTimeout(refreshVisible,700)}
+async function refreshVisible(){if(!$('precise').checked||map.getZoom()<7||!all.length)return;
+ let bounds=map.getBounds(),center=map.getCenter(),selected=all.concat(ras).filter(f=>f.properties.pt&&bounds.contains([f.properties.pt[1],f.properties.pt[0]]));
+ selected.sort((a,b)=>dist2(a.properties.pt,[center.lng,center.lat])-dist2(b.properties.pt,[center.lng,center.lat]));
+ selected=selected.slice(0,150);
+ if(!selected.length)return;status('Consultando temperaturas dos '+selected.length+' territórios visíveis…');
+ await fetchExact(selected);$('mode').textContent='Detalhe: consultas locais';
+ status('Temperaturas locais • '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+' • '+selected.length+' territórios');
+}
+function togglePanel(v){$('panel').classList.toggle('visible',v)}
+function searchPlace(){let q=fold($('search').value.trim());if(!q)return;const places=ras.concat(all),f=places.find(f=>fold(f.properties.nome)===q)||places.find(f=>fold(f.properties.nome).includes(q));
+ if(!f){status('Município ou região não encontrado: '+$('search').value);return}
+ const p=f.properties.pt;map.setView([p[1],p[0]],f.properties.uf==='DF'?11:9,{animate:true});
+ const layer=mapLayers.get(key(f));if(layer)setTimeout(()=>layer.fire('click'),550);
+ $('search').blur();
+}
+function fold(t){return String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()}
+function registerSearch(){const datalist=$('places'),names=new Set();for(const f of ras.concat(all)){const n=f.properties.nome;if(n&&!names.has(n)){names.add(n);let o=document.createElement('option');o.value=n;datalist.appendChild(o)}}}
+function openDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open('termoMapaDf',1);req.onupgradeneeded=()=>{req.result.createObjectStore('assets')};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
+async function saveUserZip(buffer){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction('assets','readwrite');tx.objectStore('assets').put(buffer,'df_shp_zip');tx.oncomplete=()=>{db.close();resolve()};tx.onerror=()=>reject(tx.error)})}
+async function restoreZip(){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction('assets','readonly'),req=tx.objectStore('assets').get('df_shp_zip');req.onsuccess=()=>{db.close();resolve(req.result)};req.onerror=()=>reject(req.error)})}
+async function eraseZip(){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction('assets','readwrite');tx.objectStore('assets').delete('df_shp_zip');tx.oncomplete=()=>{db.close();resolve()};tx.onerror=()=>reject(tx.error)})}
+async function useZip(buffer,persist){if(typeof shp!=='function')throw Error('Leitor SHP indisponível');
+ const raw=await shp(buffer),next=normalizeRA(raw);
+ if(next.length<25||next.length>100)throw Error('Arquivo não parece conter as regiões administrativas (encontradas: '+next.length+')');
+ loadRA(next,true);if(persist)await saveUserZip(buffer);registerSearch();map.fitBounds(dfBounds);await refreshVisible();
+}
+function wire(){
+ $('zoomPlus').onclick=()=>map.zoomIn();$('zoomMinus').onclick=()=>map.zoomOut();
+ $('home').onclick=()=>map.fitBounds(baseBounds,{padding:[8,8]});
+ $('df').onclick=()=>map.fitBounds(dfBounds);
+ $('refresh').onclick=async()=>{lastGrid=0;await refreshGrid(true)};
+ $('menuBtn').onclick=()=>togglePanel(!$('panel').classList.contains('visible'));
+ $('closePanel').onclick=()=>togglePanel(false);
+ $('searchBtn').onclick=searchPlace;$('search').addEventListener('keydown',e=>{if(e.key==='Enter')searchPlace()});
+ $('tiles').onchange=()=>{if($('tiles').checked){tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{opacity:.4,maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);tiles.bringToBack()}else if(tiles){map.removeLayer(tiles);tiles=null}};
+ $('borders').onchange=()=>{if(!ufLayer)return;if($('borders').checked)ufLayer.addTo(map).bringToFront();else map.removeLayer(ufLayer)};
+ $('precise').onchange=()=>refreshVisible();
+ $('period').onchange=()=>localStorage.setItem('updateMin',$('period').value);
+ let v=localStorage.getItem('updateMin');if(['15','30','60'].includes(v))$('period').value=v;
+ $('importDF').onclick=()=>$('raFile').click();
+ $('raFile').onchange=async function(){const f=this.files&&this.files[0];if(!f)return;
+ status('Importando seus polígonos do DF…');
+ try{await useZip(await f.arrayBuffer(),true);status('Sua malha do DF importada e salva: '+ras.length+' regiões')}catch(e){status('Falha ao importar SHP ZIP: '+e.message)}this.value='';};
+ $('resetDF').onclick=async()=>{await eraseZip().catch(()=>{});loadRA(window.__publicRA||[],false);status('Malha pública do DF restaurada')};
+ map.on('zoomend',()=>{updateLayers();scheduleVisible()});map.on('moveend',scheduleVisible);
+ setInterval(async()=>{let period=Number($('period').value)*60000;
+ if(Date.now()-lastGrid>Math.max(period,60*60000))await refreshGrid();
+ else await refreshVisible();},60000);
+}
+async function boot(){
+ wire();
+ try{const [mu,uf,df]=await Promise.all(['municipios.json','ufs.json','df_ras.json'].map(async x=>{const r=await fetch(x);if(!r.ok)throw Error(x+' HTTP '+r.status);return r.json()}));
+ all=mu.features;munLayer=L.geoJSON(mu,{style:styleMun,onEachFeature:onFeature}).addTo(map);
+ window.__publicRA=normalizeRA(df);loadRA(window.__publicRA,false);
+ ufLayer=L.geoJSON(uf,{style:()=>({fill:false,color:'#1f5ea3',opacity:.9,weight:1})}).addTo(map);
+ try{let buf=await restoreZip();if(buf)await useZip(buf,false)}catch(e){console.warn('Não foi possível restaurar seu ZIP DF',e)}
+ registerSearch();map.fitBounds(baseBounds,{padding:[9,9]});status(all.length+' municípios • '+ras.length+' regiões do DF • buscando temperaturas');
+ await refreshGrid(true);
+ }catch(e){status('Erro abrindo dados do mapa: '+e.message);console.error(e)}
+}
+boot();
+</script></body></html>
