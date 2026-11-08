@@ -7,10 +7,10 @@ const map = L.map("map",{preferCanvas:true,zoomControl:false,attributionControl:
 L.control.zoom({position:"bottomright"}).addTo(map);
 map.fitBounds([[-34,-74],[6,-34]]);
 const renderer=L.canvas({padding:0.3});
-const db=new Map(), direct=new Map(), regional=new Map(), detailLayers=new Map(), stateBounds={};
+const db=new Map(), direct=new Map(), regional=new Map(), estimated=new Map(), detailLayers=new Map(), stateBounds={};
 let overviewLayer, dfLayer, stateOutline, selected=null, stopped=false;
 let regionStamp=0, busy=false, timer=null;
-const TTL_DIRECT=25*60*1000, TTL_REGION=3*60*60*1000;
+const TTL_DIRECT=25*60*1000, TTL_REGION=60*60*1000;
 const colors=[[-10,"#7132a1"],[0,"#7132a1"],[5,"#2446b7"],[10,"#24ace3"],[15,"#21bd80"],[20,"#e5d82f"],[30,"#f68d26"],[40,"#cf2434"],[50,"#8f1033"]];
 function hexToRgb(h){return [1,3,5].map(i=>parseInt(h.substr(i,2),16));}
 function toColor(t){
@@ -27,19 +27,48 @@ function degreesDistance(a,b){
  const lat=(a.lat-b.lat)*111,lon=(a.lon-b.lon)*111*Math.max(.22,Math.cos(a.lat*Math.PI/180));
  return Math.sqrt(lat*lat+lon*lon);
 }
+// A temperatura de cada território é calculada pela mesma base,
+ // independente do zoom e do polígono de detalhe exibido.
+function recomputeEstimates(){
+ const refs=[...regional.values()].filter(x=>Number.isFinite(x.v));
+ const next=new Map();
+ for(const p of db.values()){
+  let a=null,b=null,c=null;
+  for(const x of refs){
+   const d=degreesDistance(p,x);
+   const item={x,d};
+   if(!a||d<a.d){c=b;b=a;a=item;}
+   else if(!b||d<b.d){c=b;b=item;}
+   else if(!c||d<c.d){c=item;}
+  }
+  if(!a)continue;
+  let v,stamp;
+  if(a.d<.5){v=a.x.v;stamp=a.x.t;}
+  else {
+   let w=0,total=0;
+   for(const item of [a,b,c]){
+    if(!item)continue;
+    const k=1/Math.max(2,item.d)**2;
+    w+=k;total+=k*item.x.v;
+   }
+   v=total/w;stamp=Math.max(...[a,b,c].filter(Boolean).map(q=>q.x.t));
+  }
+  if(Number.isFinite(v))next.set(p.id,{v,t:stamp});
+ }
+ estimated.clear();
+ for(const [id,row] of next)estimated.set(id,row);
+}
 function valueAt(p){
  const exact=direct.get(String(p.id));
  if(exact && Date.now()-exact.t<12*60*60*1000)return {t:exact.v,exact:true,date:exact.t,modelTime:exact.mt};
- if(regional.size===0)return {t:null,exact:false,date:null};
- const v=representative(p), nearest=[...regional.values()].map(x=>({x,d:degreesDistance(x,v)})).sort((a,b)=>a.d-b.d).slice(0,3);
- if(!nearest.length)return {t:null,exact:false,date:null};
- if(nearest[0].d<0.5)return {t:nearest[0].x.v,exact:false,date:nearest[0].x.t};
- let w=0,s=0;nearest.forEach(({x,d})=>{let k=1/Math.max(2,d)**2;w+=k;s+=k*x.v;});
- return {t:s/w,exact:false,date:Math.max(...nearest.map(x=>x.x.t))};
+ const x=estimated.get(String(p.id));
+ if(!x)return {t:null,exact:false,date:null};
+ const isObserved=regional.has(String(p.id));
+ return {t:x.v,exact:isObserved,date:x.t};
 }
 function style(f){
  const p=f.properties||{}, v=valueAt(p), isDF=String(p.id)==="5300108";
- return {renderer,fill:true,fillColor:toColor(v.t),fillOpacity:1,color:"#fff",weight:map.getZoom()>8?0.7:0.32,opacity:0.9,interactive:!(isDF && map.getZoom()>=8 && !!dfLayer)};
+ return {renderer,fill:true,fillColor:toColor(v.t),fillOpacity:isDF&&!!dfLayer?0:1,color:"#fff",weight:map.getZoom()>8?0.7:0.32,opacity:0.9,interactive:!(isDF && !!dfLayer)};
 }
 function refreshStyles(){
  if(overviewLayer)overviewLayer.setStyle(style);
@@ -92,7 +121,7 @@ function showDetailLayers(){
    }else if(detailLayers.has(uf)&&detailLayers.get(uf).remove)map.removeLayer(detailLayers.get(uf));
   }
  }
- if(dfLayer){if(z>=8 && boundsIntersect([-16.1,-48.35,-15.45,-47.25],bounds))dfLayer.addTo(map);else map.removeLayer(dfLayer);}
+ if(dfLayer && !map.hasLayer(dfLayer))dfLayer.addTo(map);
  reorderOutline();
  queueStyle();
 }
@@ -108,6 +137,8 @@ async function fetchBatch(points,kind){
  points=points.filter(p=>p&&Number.isFinite(p.lat)&&Number.isFinite(p.lon));
  if(!points.length||!navigator.onLine)return;
  const chunks=[];for(let i=0;i<points.length;i+=35)chunks.push(points.slice(i,i+35));
+ const fetched=new Map();
+ let failures=0;
  for(const chunk of chunks){
   if(!dailyBudget(chunk.length))break;
   const params=new URLSearchParams({
@@ -126,35 +157,54 @@ async function fetchBatch(points,kind){
    const payload=await response.json(),arr=Array.isArray(payload)?payload:[payload],now=Date.now();
    arr.forEach((ob,i)=>{
     const t=Number(ob.current&&ob.current.temperature_2m),p=chunk[i];
-    if(Number.isFinite(t)&&p){
-      const row={...p,v:t,t:now,mt:ob.current.time};
-      if(kind==="regional")regional.set(String(p.id),row);
-      else direct.set(String(p.id),row);
-    }
+    if(Number.isFinite(t)&&p)fetched.set(String(p.id),{...p,v:t,t:now,mt:ob.current.time});
    });
-   regionStamp=now;
-   queueStyle();
-   if(selected)showDetail(selected);
-   setStatus((kind==="regional"?"Mapa geral":"Área em detalhe")+" atualizado às "+prettyTime(now)+" • toque em um território.");
-  }catch(err){setStatus("Consulta indisponível ("+err.message+"). Mantendo últimas cores.");}
+  }catch(err){failures++;console.warn("Falha Open-Meteo:",err);}
  }
+ if(fetched.size){
+  if(kind==="regional"){
+   // Troca atômica: o mapa todo recebe a nova rodada meteorológica
+   // de uma vez só, em vez de piscar a cada lote recebido.
+   for(const [id,row] of fetched)regional.set(id,row);
+   recomputeEstimates();
+  }else{
+   for(const [id,row] of fetched)direct.set(id,row);
+  }
+  const now=Date.now();
+  regionStamp=now;
+  queueStyle();
+  if(selected)showDetail(selected);
+  setStatus((kind==="regional"?"Brasil inteiro":"Área selecionada")+" atualizado às "+prettyTime(now)+" • "+fetched.size+" pontos consultados.");
+ }else if(failures){
+  setStatus("Consulta meteorológica indisponível. Mantendo as últimas cores.");
+ }
+ return fetched.size;
 }
 function chooseSamples(){
- const cells=new Map();
+ const cells=new Map(),grid=1.75;
  for(const x of db.values()){
   if(x.p.kind==="ra")continue;
-  const latbin=Math.floor((x.lat+35)/3),lonbin=Math.floor((x.lon+75)/3);
+  const latbin=Math.floor((x.lat+35)/grid),lonbin=Math.floor((x.lon+75)/grid);
   const key=latbin+":"+lonbin;
-  const midLat=-35+latbin*3+1.5,midLon=-75+lonbin*3+1.5,d=Math.abs(x.lat-midLat)+Math.abs(x.lon-midLon);
+  const midLat=-35+(latbin+.5)*grid,midLon=-75+(lonbin+.5)*grid;
+  const d=Math.abs(x.lat-midLat)+Math.abs(x.lon-midLon);
   if(!cells.has(key)||d<cells.get(key).d)cells.set(key,{...x,d});
  }
- const a=[...cells.values()].map(x=>({id:x.id,lat:x.lat,lon:x.lon,p:x.p}));
- return a.length<=150?a:a.filter((_,i)=>i%Math.ceil(a.length/150)===0);
+ let a=[...cells.values()].map(x=>({id:x.id,lat:x.lat,lon:x.lon,p:x.p}));
+ // Limita o consumo da API gratuita e preserva amostras distribuídas pelo país.
+ if(a.length>205){
+  a.sort((x,y)=>x.lat===y.lat?x.lon-y.lon:x.lat-y.lat);
+  const old=a;a=[];
+  for(let i=0;i<205;i++)a.push(old[Math.floor(i*(old.length-1)/204)]);
+ }
+ // Todas as RAs são amostradas diretamente, independentemente do zoom no DF.
+ const ras=[...db.values()].filter(x=>x.p.kind==="ra");
+ return a.concat(ras);
 }
-async function updateRegional(){
+async function updateRegional(force=false){
  if(busy)return;
  const last=Number(localStorage.getItem("temp-last-regional")||0);
- if(Date.now()-last<TTL_REGION && regional.size)return;
+ if(!force && Date.now()-last<TTL_REGION && regional.size)return;
  busy=true;
  try{const a=chooseSamples();setStatus("Atualizando referências climáticas do Brasil…");await fetchBatch(a,"regional");if(regional.size)localStorage.setItem("temp-last-regional",Date.now().toString());}
  finally{busy=false;}
@@ -182,7 +232,6 @@ async function loadData(){
   registerGeo(overview);registerGeo(df);
   addLayer(overview,"base");
   dfLayer=addLayer(df,"df");
-  map.removeLayer(dfLayer);
   stateOutline=L.geoJSON(outlines,{interactive:false,style:{fill:false,color:"#155c8a",weight:1.2,opacity:.9}}).addTo(map);
   // Restore cached exact and coarse temperatures for an immediately useful display.
   try{
@@ -190,23 +239,23 @@ async function loadData(){
     if(c&&Date.now()-c.stamp<6*60*60*1000){
       for(const r of c.region||[])regional.set(r.id,r);
       for(const r of c.direct||[])direct.set(r.id,r);
+      recomputeEstimates();
     }
   }catch(_){}
   showDetailLayers();
   await updateRegional();
-  await updateViewport();
   setInterval(()=>{
     try{localStorage.setItem("temp-cache",JSON.stringify({stamp:Date.now(),region:[...regional.values()],direct:[...direct.values()].slice(-600)}));}catch(_){}
-    updateRegional();updateViewport();
+    updateRegional();
   },15*60*1000);
   setStatus("Mapa carregado: "+(overview.features||[]).length+" territórios IBGE e "+(df.features||[]).length+" regiões do DF • toque para consultar.");
  }catch(err){setStatus("Erro ao abrir base geográfica: "+err.message);}
 }
 let moveTimer;
 map.on("moveend zoomend",()=>{
- clearTimeout(moveTimer);moveTimer=setTimeout(()=>{showDetailLayers();updateViewport();},650);
+ clearTimeout(moveTimer);moveTimer=setTimeout(()=>{showDetailLayers();},250);
 });
-$("refresh").onclick=async()=>{await updateRegional();await updateViewport(true);};
+$("refresh").onclick=async()=>{await updateRegional(true);await updateViewport(true);};
 $("loc").onclick=()=>updateViewport(true);
 $("all").onclick=()=>map.fitBounds([[-34,-74],[6,-34]]);
 $("df").onclick=()=>map.flyTo([-15.78,-47.91],10,{duration:0.7});
@@ -232,5 +281,5 @@ function search(){
 $("search").addEventListener("input",search);
 $("go").onclick=()=>{const a=searchList($("search").value);if(a.length)chooseSearch(a[0]);};
 $("search").addEventListener("keydown",e=>{if(e.key==="Enter")$("go").click();});
-window.addEventListener("online",()=>{setStatus("Conexão restabelecida. Atualizando…");updateRegional();updateViewport();});
+window.addEventListener("online",()=>{setStatus("Conexão restabelecida. Atualizando…");updateRegional(true);});
 loadData();
