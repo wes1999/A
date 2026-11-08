@@ -32,6 +32,10 @@ jobs:
         run: |
           curl -fL --retry 4 https://unpkg.com/leaflet@1.9.4/dist/leaflet.js -o mapa-temperatura-brasil/app/src/main/assets/leaflet.js
           curl -fL --retry 4 https://unpkg.com/leaflet@1.9.4/dist/leaflet.css -o mapa-temperatura-brasil/app/src/main/assets/leaflet.css
+      - name: Embutir fotografia nacional completa de temperaturas no APK
+        run: |
+          curl -fLsS --retry 5 --retry-delay 2 "https://raw.githubusercontent.com/wes1999/A/dados-temperaturas/data/temperaturas.json" -o mapa-temperatura-brasil/app/src/main/assets/temperaturas_inicial.json
+          python3 -c 'import json; p="mapa-temperatura-brasil/app/src/main/assets/temperaturas_inicial.json"; a=json.load(open(p)); assert a["municipios"]==5569 and a["regioes_administrativas_df"]==37 and len(a["values"])==5607'
       - name: Validar sintaxe JavaScript do mapa
         run: node --check mapa-temperatura-brasil/app/src/main/assets/app.js
       - name: Compilar APK Android
