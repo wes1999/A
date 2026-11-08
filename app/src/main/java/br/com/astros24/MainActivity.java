@@ -208,8 +208,8 @@ public class MainActivity extends Activity {
     }
     private void capture(){
         if(!running)return;
-        if(cancel || SystemClock.elapsedRealtime()-startedAt>=durationMs){finish();return;}
-        if(session==null || camera==null || reader==null){cancel=true;finish();return;}
+        if(cancel || SystemClock.elapsedRealtime()-startedAt>=durationMs){finishSequence();return;}
+        if(session==null || camera==null || reader==null){cancel=true;finishSequence();return;}
         gotImage=false;gotResult=false;actualExposureNs=selectedExposureNs;
         try{
             CaptureRequest.Builder b=camera.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
@@ -229,10 +229,10 @@ public class MainActivity extends Activity {
                     gotResult=true;nextIfReady();
                 }
                 @Override public void onCaptureFailed(CameraCaptureSession s,CaptureRequest req,CaptureFailure failure){
-                    cancel=true;message("A captura falhou. Processando fotos anteriores.");finish();
+                    cancel=true;message("A captura falhou. Processando fotos anteriores.");finishSequence();
                 }
             },handler);
-        }catch(Exception ex){cancel=true;message("Erro na captura: "+ex.getMessage());finish();}
+        }catch(Exception ex){cancel=true;message("Erro na captura: "+ex.getMessage());finishSequence();}
     }
     private void onImage(ImageReader r) {
         Image image=null;
@@ -245,7 +245,7 @@ public class MainActivity extends Activity {
             File shot=new File(folder,String.format(Locale.US,"quadro_%04d.jpg",frames.size()+1));
             try(FileOutputStream out=new FileOutputStream(shot)){out.write(content);}
             frames.add(shot);gotImage=true;nextIfReady();
-        }catch(Exception ex){cancel=true;message("Erro salvando quadro: "+ex.getMessage());finish();}
+        }catch(Exception ex){cancel=true;message("Erro salvando quadro: "+ex.getMessage());finishSequence();}
         finally{if(image!=null)image.close();}
     }
     private void nextIfReady(){
@@ -257,10 +257,10 @@ public class MainActivity extends Activity {
             bar.setProgress(pct);
             status.setText("Fotos: "+frames.size()+" • Sessão: "+(elapsed/1000)+" s / "+(durationMs/1000)+" s");
         });
-        if(cancel || elapsed>=durationMs)finish();
+        if(cancel || elapsed>=durationMs)finishSequence();
         else handler.postDelayed(this::capture,200);
     }
-    private void finish(){
+    private void finishSequence(){
         if(!running)return;
         running=false;processing=!frames.isEmpty();
         if(frames.isEmpty()){message("Nenhuma foto registrada.");reset();return;}
