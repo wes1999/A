@@ -6,8 +6,9 @@ const setStatus=s=>{$("status").textContent=s;};
 const map=L.map("map",{preferCanvas:true,zoomControl:false,attributionControl:false,minZoom:3,maxZoom:14,worldCopyJump:false,zoomSnap:.25});
 L.control.zoom({position:"bottomright"}).addTo(map);
 map.fitBounds([[-34,-74],[6,-34]]);
-const renderer=L.canvas({padding:.3});
+const renderer=L.canvas({padding:.18});
 const db=new Map(), temperatures=new Map(),detailLayers=new Map(),stateBounds={};
+const overviewByUf=new Map(),hiddenOverviewStates=new Set();
 let overviewLayer,dfLayer,stateOutline,selected=null,lastSnapshot=null,loading=false;
 const DATA_URL="https://raw.githubusercontent.com/wes1999/A/dados-temperaturas/data/temperaturas.json";
 const CACHE_KEY="temperaturas-brasil-nacional-v4";
@@ -33,12 +34,16 @@ function registerGeo(geo){
 }
 function valueAt(p){const v=temperatures.get(String(p.id));return v==null?null:v;}
 function style(f){
- const p=f.properties||{},id=String(p.id||""),isDF=id==="5300108";
+ const p=f.properties||{},id=String(p.id||""),isDF=id==="5300108",z=map.getZoom();
  return {
   renderer,fill:true,fillColor:toColor(temperatures.get(id)),
-  fillOpacity:isDF&&dfLayer?0:1,color:"#fff",
-  weight:map.getZoom()>8 ? .7 : .32,opacity:.9,
-  interactive:!isDF
+  fillOpacity:isDF&&dfLayer?0:1,
+  color:"#ffffff",opacity:z<5?.52:z<7?.68:.88,
+  weight:z<5?.16:z<7?.26:z<9?.38:z<11?.52:.72,
+  lineJoin:"round",lineCap:"round",
+  // A simplificação automática por zoom do Leaflet era uma das causas
+  // da aparência de baixa resolução. Menos de 0,15 pixel é imperceptível.
+  smoothFactor:.12,interactive:!isDF
  };
 }
 function refreshStyles(){
@@ -52,11 +57,29 @@ function featureClicked(e){
  showDetail(p);
 }
 function addLayer(geo,kind){
- const layer=L.geoJSON(geo,{renderer,style,onEachFeature:(f,l)=>{l.on("click",featureClicked);}});
+ const layer=L.geoJSON(geo,{renderer,style,onEachFeature:(f,l)=>{
+  l.on("click",featureClicked);
+  if(kind==="base"){
+   const uf=String((f.properties||{}).uf||"");
+   if(!overviewByUf.has(uf))overviewByUf.set(uf,[]);
+   overviewByUf.get(uf).push(l);
+  }
+ }});
  if(kind==="base"){overviewLayer=layer;layer.addTo(map);}
  else if(kind==="df"){dfLayer=layer;layer.addTo(map);}
  return layer;
 }
+function hideOverviewUf(uf){
+ if(!overviewLayer||hiddenOverviewStates.has(uf))return;
+ for(const item of overviewByUf.get(uf)||[])overviewLayer.removeLayer(item);
+ hiddenOverviewStates.add(uf);
+}
+function restoreOverviewUf(uf){
+ if(!overviewLayer||!hiddenOverviewStates.has(uf))return;
+ for(const item of overviewByUf.get(uf)||[])overviewLayer.addLayer(item);
+ hiddenOverviewStates.delete(uf);
+}
+
 function timeBR(iso){
  if(!iso)return "indisponível";
  const d=new Date(iso);
@@ -84,30 +107,41 @@ function boundsIntersect(a,b){
 function reorderOutline(){if(stateOutline)stateOutline.bringToFront();}
 function showDetailLayers(){
  if(!overviewLayer)return;
- const z=map.getZoom(),bounds=map.getBounds();
- if(z<6.5){
-  for(const layer of detailLayers.values())if(layer&&layer.remove)map.removeLayer(layer);
- }else{
-  for(const [uf,b] of Object.entries(stateBounds)){
-   if(uf==="DF")continue;
-   if(boundsIntersect(b,bounds)){
-    if(detailLayers.has(uf)){
-     const l=detailLayers.get(uf);if(l&&l.addTo)l.addTo(map);
-     continue;
-    }
+ const zoom=map.getZoom(),bounds=map.getBounds();
+ // O mapa geral já usa geometria de ~40 metros. As malhas estaduais
+ // mais finas são ativadas somente quando essa diferença é subpixel.
+ const wantDetail=zoom>=8.25;
+ for(const [uf,b] of Object.entries(stateBounds)){
+  if(uf==="DF")continue;
+  const visible=wantDetail&&boundsIntersect(b,bounds);
+  const layer=detailLayers.get(uf);
+  if(visible){
+   if(layer&&layer.addTo){
+    if(!map.hasLayer(layer))layer.addTo(map);
+    hideOverviewUf(uf); // Nunca desenhar a mesma fronteira duas vezes.
+   }else if(!layer){
     detailLayers.set(uf,{placeholder:true});
     fetch("mapa/estados/"+uf+".geojson").then(r=>{
-     if(!r.ok)throw Error("Malha "+uf+": "+r.status);return r.json();
+     if(!r.ok)throw Error("Malha "+uf+": "+r.status);
+     return r.json();
     }).then(g=>{
-     const l=addLayer(g);
-     detailLayers.set(uf,l);
-     if(map.getZoom()>=6.5&&boundsIntersect(b,map.getBounds()))l.addTo(map);
-     reorderOutline();
-    }).catch(()=>detailLayers.delete(uf));
-   }else{
-    const l=detailLayers.get(uf);
-    if(l&&l.remove)map.removeLayer(l);
+     const newLayer=addLayer(g);
+     detailLayers.set(uf,newLayer);
+     const shouldDisplay=map.getZoom()>=8.25&&boundsIntersect(b,map.getBounds());
+     if(shouldDisplay){
+      newLayer.addTo(map);
+      hideOverviewUf(uf);
+      reorderOutline();
+     }
+    }).catch(err=>{
+     console.warn("Falha ao carregar malha de "+uf,err);
+     detailLayers.delete(uf);
+     restoreOverviewUf(uf);
+    });
    }
+  }else{
+   if(layer&&layer.remove)map.removeLayer(layer);
+   restoreOverviewUf(uf);
   }
  }
  if(dfLayer&&!map.hasLayer(dfLayer))dfLayer.addTo(map);
@@ -176,7 +210,7 @@ async function loadData(){
   registerGeo(overview);registerGeo(df);
   addLayer(overview,"base");
   addLayer(df,"df");
-  stateOutline=L.geoJSON(outlines,{interactive:false,style:{fill:false,color:"#155c8a",weight:1.2,opacity:.9}}).addTo(map);
+  stateOutline=L.geoJSON(outlines,{interactive:false,renderer,style:{fill:false,color:"#155c8a",weight:1.1,opacity:.92,smoothFactor:.12,lineCap:"round",lineJoin:"round"}}).addTo(map);
   showDetailLayers();
   let restored=false;
   try{
