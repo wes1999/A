@@ -100,7 +100,9 @@ def fetch_grib():
             res=session.get(url,headers={"Range":f"bytes={start}-{end}"},timeout=80)
             if res.status_code!=206:raise RuntimeError("Servidor não respeitou Range: "+str(res.status_code))
             if len(res.content)!=size:raise RuntimeError("Dados GRIB truncados")
-            with io.BytesIO(res.content) as data:
+            with tempfile.TemporaryFile(mode="w+b") as data:
+                data.write(res.content)
+                data.seek(0)
                 gid=codes_grib_new_from_file(data)
                 if gid is None:raise RuntimeError("Não foi possível decodificar GRIB")
                 try:
