@@ -1,4 +1,4 @@
-name: Publicar APK V4 com 5606 territorios
+name: Publicar APK V5 com fronteiras detalhadas
 on:
   push:
     branches: [mapa-temperatura-brasil]
@@ -20,18 +20,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p dist
-          gh run download 42532617049 -R "${GITHUB_REPOSITORY}" -n MapaTemperaturaBrasil-APK -D dist
+          gh run download 42535327062 -R "${GITHUB_REPOSITORY}" -n MapaTemperaturaBrasil-APK -D dist
           test -s dist/app-debug.apk
-          mv dist/app-debug.apk dist/MapaTemperaturasBrasil-V4-5606-Territorios.apk
-          file dist/MapaTemperaturasBrasil-V4-5606-Territorios.apk
-          sha256sum dist/MapaTemperaturasBrasil-V4-5606-Territorios.apk
+          mv dist/app-debug.apk dist/MapaTemperaturasBrasil-V5-Fronteiras-Detalhadas.apk
+          file dist/MapaTemperaturasBrasil-V5-Fronteiras-Detalhadas.apk
+          sha256sum dist/MapaTemperaturasBrasil-V5-Fronteiras-Detalhadas.apk
       - name: Publicar download direto
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create mapa-temperatura-v4 dist/MapaTemperaturasBrasil-V4-5606-Territorios.apk \
+          gh release create mapa-temperatura-v5 dist/MapaTemperaturasBrasil-V5-Fronteiras-Detalhadas.apk \
             -R "${GITHUB_REPOSITORY}" \
             --target "${GITHUB_SHA}" \
-            --title "Mapa de Temperaturas do Brasil V4 - Todos os municípios e RAs" \
-            --notes "APK Android V4: 5.569 municípios + 37 regiões administrativas do DF, atualizados numa fotografia nacional única usando temperatura estimada NOAA GFS (0,25 grau). Cores idênticas em qualquer zoom. Inclui Fernando de Noronha. Ainda requer teste no aparelho; a malha do DF usa dados públicos provisórios e não o arquivo original ajustado." \
+            --title "Mapa de Temperaturas do Brasil V5 - Fronteiras detalhadas" \
+            --notes "APK Android V5: malha IBGE 2025 muito mais detalhada em zoom nacional e local, contornos menos simplificados e sem sobreposição de camadas. Mantém temperaturas GFS e 5.569 municípios + 37 regiões administrativas do DF. Ainda não testado em Galaxy S24, e o DF usa malha provisória." \
             --latest=false
