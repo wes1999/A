@@ -65,3 +65,4 @@ jobs:
             git commit -m "Atualizar 5.569 municípios, 37 RAs e Noronha (GFS)"
             git push origin HEAD:refs/heads/dados-temperaturas
           fi
+# Verificação de integração GRIB corrigida
