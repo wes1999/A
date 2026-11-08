@@ -15,10 +15,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Android SDK
-        uses: android-actions/setup-android@v3
-      - name: Instalar Android 35
-        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Preparar SDK Android do runner
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
       - name: Gradle 8.12
         uses: gradle/actions/setup-gradle@v4
         with:
