@@ -163,6 +163,16 @@ def main():
         "values":values
     }
     assert len(values)==5607
+    try:
+        from metar_observations import merge_into_snapshot
+        snapshot=merge_into_snapshot(snapshot,os.environ["APK_PATH"])
+        snapshot["source"]="NOAA METAR (onde há estação) + GFS 0,25° (restante)"
+    except Exception as exc:
+        # Um serviço externo indisponível não deve eliminar a cobertura nacional.
+        print("Aviso: METAR indisponível; temperaturas GFS preservadas:",repr(exc),flush=True)
+        snapshot["observed"]={}
+        snapshot["observed_count"]=0
+        snapshot["metar_status"]="indisponível"
     OUTPUT.parent.mkdir(parents=True,exist_ok=True)
     OUTPUT.write_text(json.dumps(snapshot,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
     print("Fotografia nacional pronta:",OUTPUT,"temperaturas:",len(values),"bytes:",OUTPUT.stat().st_size,flush=True)
