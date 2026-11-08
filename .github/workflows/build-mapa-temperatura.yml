@@ -28,6 +28,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Empacotar biblioteca Leaflet localmente (funciona sem CDN no telefone)
+        run: |
+          curl -fL --retry 4 https://unpkg.com/leaflet@1.9.4/dist/leaflet.js -o mapa-temperatura-brasil/app/src/main/assets/leaflet.js
+          curl -fL --retry 4 https://unpkg.com/leaflet@1.9.4/dist/leaflet.css -o mapa-temperatura-brasil/app/src/main/assets/leaflet.css
       - name: Compilar APK Android
         run: cd mapa-temperatura-brasil && gradle --no-daemon assembleDebug --stacktrace
       - uses: actions/upload-artifact@v4

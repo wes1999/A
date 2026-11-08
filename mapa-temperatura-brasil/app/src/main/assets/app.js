@@ -43,7 +43,7 @@ function style(f){
 }
 function refreshStyles(){
  if(overviewLayer)overviewLayer.setStyle(style);
- for(const layer of detailLayers.values())layer.setStyle(style);
+ for(const layer of detailLayers.values())if(layer&&layer.setStyle)layer.setStyle(style);
  if(dfLayer)dfLayer.setStyle(style);
 }
 let styleTimer;
@@ -77,12 +77,12 @@ function boundsIntersect(a,b){
 function showDetailLayers(){
  if(!overviewLayer)return;
  const z=map.getZoom(),bounds=map.getBounds();
- if(z<6.5){for(const layer of detailLayers.values())map.removeLayer(layer);}
+ if(z<6.5){for(const layer of detailLayers.values())if(layer&&layer.remove)map.removeLayer(layer);}
  else {
   for(const [uf,b] of Object.entries(stateBounds)){
    if(uf==="DF")continue;
    if(boundsIntersect(b,bounds)){
-    if(detailLayers.has(uf)){detailLayers.get(uf).addTo(map);continue;}
+    if(detailLayers.has(uf)){const item=detailLayers.get(uf);if(item&&item.addTo)item.addTo(map);continue;}
     detailLayers.set(uf,{placeholder:true});
     fetch("mapa/estados/"+uf+".geojson").then(r=>{if(!r.ok)throw Error(r.status);return r.json();}).then(g=>{
      const layer=addLayer(g);detailLayers.set(uf,layer);
@@ -170,7 +170,7 @@ async function updateViewport(force=false){
  if(a.length){setStatus("Consultando "+a.length+" territórios na área visível…");await fetchBatch(a,"visible");}
 }
 async function loadData(){
- if(typeof L==="undefined"){setStatus("Não foi possível carregar o mapa. Verifique a conexão com a internet.");return;}
+ 
  try{
   const [overview,df,bounds,outlines]=await Promise.all([
    fetch("mapa/overview.geojson").then(r=>r.json()),
