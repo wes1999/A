@@ -1,4 +1,4 @@
-name: Publicar APK V3 com Cores Fixas
+name: Publicar APK V4 com 5606 territorios
 on:
   push:
     branches: [mapa-temperatura-brasil]
@@ -20,18 +20,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p dist
-          gh run download 42530553829 -R "${GITHUB_REPOSITORY}" -n MapaTemperaturaBrasil-APK -D dist
+          gh run download 42532617049 -R "${GITHUB_REPOSITORY}" -n MapaTemperaturaBrasil-APK -D dist
           test -s dist/app-debug.apk
-          mv dist/app-debug.apk dist/MapaTemperaturasBrasil-V3-ZoomFixo.apk
-          file dist/MapaTemperaturasBrasil-V3-ZoomFixo.apk
-          sha256sum dist/MapaTemperaturasBrasil-V3-ZoomFixo.apk
+          mv dist/app-debug.apk dist/MapaTemperaturasBrasil-V4-5606-Territorios.apk
+          file dist/MapaTemperaturasBrasil-V4-5606-Territorios.apk
+          sha256sum dist/MapaTemperaturasBrasil-V4-5606-Territorios.apk
       - name: Publicar download direto
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create mapa-temperatura-v3 dist/MapaTemperaturasBrasil-V3-ZoomFixo.apk \
+          gh release create mapa-temperatura-v4 dist/MapaTemperaturasBrasil-V4-5606-Territorios.apk \
             -R "${GITHUB_REPOSITORY}" \
             --target "${GITHUB_SHA}" \
-            --title "Mapa de Temperaturas do Brasil V3 - Cores Fixas" \
-            --notes "APK Android V3: cores constantes em qualquer zoom, atualização meteorológica independente do zoom, melhorias nas consultas nacionais e regiões administrativas do DF. Ainda requer testes no aparelho e ajustes finais nos limites originais do DF." \
+            --title "Mapa de Temperaturas do Brasil V4 - Todos os municípios e RAs" \
+            --notes "APK Android V4: 5.569 municípios + 37 regiões administrativas do DF, atualizados numa fotografia nacional única usando temperatura estimada NOAA GFS (0,25 grau). Cores idênticas em qualquer zoom. Inclui Fernando de Noronha. Ainda requer teste no aparelho; a malha do DF usa dados públicos provisórios e não o arquivo original ajustado." \
             --latest=false
