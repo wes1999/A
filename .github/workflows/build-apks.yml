@@ -58,3 +58,44 @@ jobs:
         with:
           name: APK-Rota-Lanches-${{ matrix.app }}-0.2.1
           path: projeto/android/${{ matrix.app }}/app/build/outputs/apk/debug/app-debug.apk
+
+  teste-emulador:
+    needs: compilar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: 'APK-Rota-Lanches-*-0.2.1'
+          path: apks
+      - name: Liberar aceleração do emulador
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Instalar e iniciar os dois APKs no Android simulado
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          script: |
+            set -euxo pipefail
+            mkdir -p screenshots
+            adb install apks/APK-Rota-Lanches-Estabelecimento-0.2.1/app-debug.apk
+            adb shell am start -W -n br.com.rotalanches.loja/br.com.rotalanches.MainActivity
+            sleep 5
+            adb shell pidof br.com.rotalanches.loja | grep -E '^[0-9]+$'
+            adb exec-out screencap -p > screenshots/Estabelecimento.png
+            adb shell am force-stop br.com.rotalanches.loja
+            adb install apks/APK-Rota-Lanches-Entregador-0.2.1/app-debug.apk
+            adb shell am start -W -n br.com.rotalanches.entregador/br.com.rotalanches.MainActivity
+            sleep 5
+            adb shell pidof br.com.rotalanches.entregador | grep -E '^[0-9]+$'
+            adb exec-out screencap -p > screenshots/Entregador.png
+      - name: Guardar capturas do Android simulado
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Capturas-emulador-Android-RotaLanches
+          path: screenshots/*.png
