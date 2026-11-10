@@ -1,1 +1,0 @@
-Branch isolada dedicada à compilação de teste dos APKs Rota Lanches. A branch main não será alterada.

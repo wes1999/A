@@ -1,0 +1,56 @@
+name: Compilar APKs Rota Lanches 0.2.1
+on:
+  push:
+    branches: [rota-lanches-apks-2026-11-10]
+  workflow_dispatch:
+
+jobs:
+  testes-servidor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extrair projeto
+        run: unzip -q rota-lanches-projeto-testado-v0.2.1.zip -d projeto
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar gerador de QR e testar 20 entregas
+        working-directory: projeto/server
+        run: |
+          npm install --no-audit --no-fund
+          npm test
+          node -e "require('qrcode').toString('RL1:0123456789abcdef0123456789abcdef0123456789abcdef',{type:'svg'}).then(v=>{if(!v.includes('<svg'))process.exit(2);console.log('QR SVG: OK')})"
+
+  compilar:
+    needs: testes-servidor
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [Estabelecimento, Entregador]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extrair projeto
+        run: unzip -q rota-lanches-projeto-testado-v0.2.1.zip -d projeto
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Instalar SDK Android 35
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Compilar APK debug
+        working-directory: projeto/android/${{ matrix.app }}
+        run: gradle :app:assembleDebug --stacktrace --no-daemon
+      - name: Validar APK gerado
+        run: |
+          test -s "projeto/android/${{ matrix.app }}/app/build/outputs/apk/debug/app-debug.apk"
+          sha256sum "projeto/android/${{ matrix.app }}/app/build/outputs/apk/debug/app-debug.apk"
+      - name: Publicar APK para baixar
+        uses: actions/upload-artifact@v4
+        with:
+          name: APK-Rota-Lanches-${{ matrix.app }}-0.2.1
+          path: projeto/android/${{ matrix.app }}/app/build/outputs/apk/debug/app-debug.apk
