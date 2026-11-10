@@ -1,1 +1,74 @@
-The requested file reference is not currently visible. Use files.search or files.list to rediscover the file, then retry with a returned ref_id or file_id.
+name: APK Simulador Rota Lanches S24
+on:
+  push:
+    branches: [rota-lanches-apks-2026-11-10]
+    paths:
+      - 'rota-lanches-s24-fonte.zip'
+      - '.github/workflows/build-demo-s24.yml'
+  workflow_dispatch:
+jobs:
+  compilar-simulador:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extrair projeto Android
+        run: unzip -q rota-lanches-s24-fonte.zip -d demo
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Preparar Android SDK
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Compilar simulador offline
+        working-directory: demo/android-demo
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+      - name: Verificar APK
+        run: |
+          test -s demo/android-demo/app/build/outputs/apk/debug/app-debug.apk
+          sha256sum demo/android-demo/app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Rota-Lanches-Simulador-S24-APK
+          path: demo/android-demo/app/build/outputs/apk/debug/app-debug.apk
+  teste-emulador:
+    needs: compilar-simulador
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Rota-Lanches-Simulador-S24-APK
+          path: apks
+      - name: Habilitar KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Testar abertura do simulador no Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          script: |
+            set -euxo pipefail
+            mkdir -p telas
+            adb install apks/app-debug.apk
+            adb shell am start -W -n br.com.rotalanches.demo/br.com.rotalanches.demo.MainActivity
+            sleep 5
+            adb shell pidof br.com.rotalanches.demo | grep -E '^[0-9]+$'
+            adb exec-out screencap -p > telas/Simulador-S24.png
+      - name: Enviar captura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Captura-Rota-Lanches-S24
+          path: telas/Simulador-S24.png
